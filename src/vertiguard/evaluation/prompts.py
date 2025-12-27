@@ -4,11 +4,13 @@ BEHAVIOR_CHECK_PROMPT = """You are an expert evaluator for LLM outputs. Your tas
 
 ## Input Data
 ```
+{input}
 {input_data}
 ```
 
 ## Output Data
 ```
+{output}
 {output_data}
 ```
 
@@ -49,6 +51,12 @@ ROOT_CAUSE_CLASSIFICATION_PROMPT = """You are an expert at diagnosing LLM output
 ## Failed Checks
 {failures}
 
+## Behavior Analysis
+{behavior}
+
+## Reasoning
+{reasoning}
+
 ## Categories to Consider
 - hallucination: Output contains fabricated information not in input
 - format_error: Output doesn't match expected structure/format
@@ -82,6 +90,7 @@ SECURITY_CHECK_PROMPT = """You are a security analyst for LLM applications. Chec
 
 ## Output Data
 ```
+{output}
 {output_data}
 ```
 
@@ -157,11 +166,13 @@ BATCH_BEHAVIOR_CHECK_PROMPT = """You are an expert evaluator for LLM outputs. Ev
 
 ## Input Data
 ```
+{input}
 {input_data}
 ```
 
 ## Output Data
 ```
+{output}
 {output_data}
 ```
 

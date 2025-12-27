@@ -114,20 +114,32 @@ class FailureClassifier:
 
         # Aggregate failure information
         all_reasons = []
+        all_behaviors = []
         for check in failed_checks:
             if isinstance(check, dict):
-                reason = check.get("reasoning") or check.get("message", "")
+                reason = check.get("reasoning") or check.get("message", "") or str(check)
                 behavior = check.get("behavior", "")
-                all_reasons.append(f"{behavior}: {reason}")
+                all_reasons.append(reason)
+                if behavior:
+                    all_behaviors.append(behavior)
             else:
-                all_reasons.append(str(check))
+                # Handle BehaviorCheckResult objects directly
+                if hasattr(check, "reasoning"):
+                    all_reasons.append(check.reasoning)
+                elif hasattr(check, "message"):
+                    all_reasons.append(check.message)
+                else:
+                    all_reasons.append(str(check))
+                if hasattr(check, "behavior"):
+                    all_behaviors.append(check.behavior)
 
-        combined_text = " ".join(all_reasons).lower()
+        # Combine all text for keyword matching
+        combined_text = " ".join(all_reasons + all_behaviors).lower()
 
         # Score each category based on keyword matches
         category_scores: dict[FailureCategory, int] = {}
         for category, keywords in self.CATEGORY_KEYWORDS.items():
-            score = sum(1 for kw in keywords if kw in combined_text)
+            score = sum(1 for kw in keywords if kw.lower() in combined_text)
             if score > 0:
                 category_scores[category] = score
 
@@ -170,21 +182,16 @@ class FailureClassifier:
         Returns:
             FailureClassification with category and details.
         """
-        # Convert single check to list format
-        if hasattr(failed_check, "__dict__"):
-            check_dict = {
-                "behavior": getattr(failed_check, "behavior", ""),
-                "reasoning": getattr(failed_check, "reasoning", ""),
-                "message": getattr(failed_check, "message", ""),
-                "passed": getattr(failed_check, "passed", False),
-            }
-        elif isinstance(failed_check, dict):
-            check_dict = failed_check
+        # Convert single check to list format for classify_from_checks
+        # classify_from_checks can handle both dicts and objects
+        if isinstance(failed_check, dict):
+            check_list = [failed_check]
         else:
-            check_dict = {"reasoning": str(failed_check)}
+            # Pass the object directly - classify_from_checks handles it
+            check_list = [failed_check]
 
         return self.classify_from_checks(
-            failed_checks=[check_dict],
+            failed_checks=check_list,
             input_data=input_data,
             output_data=output_data,
         )

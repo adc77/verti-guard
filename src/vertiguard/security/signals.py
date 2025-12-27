@@ -41,7 +41,7 @@ class SecuritySignal:
     """A security signal representing a detected issue."""
     signal_type: SignalType | str
     severity: SignalSeverity
-    message: str
+    message: Optional[str] = None
     node_name: Optional[str] = None
     timestamp: float = field(default_factory=time.time)
     signal_id: str = field(default_factory=lambda: str(uuid4()))
@@ -65,10 +65,22 @@ class SecuritySignal:
             except ValueError:
                 self.signal_type = SignalType.ANOMALOUS_BEHAVIOR
 
+        # Derive missing fields from each other
         if self.source_node is None:
             self.source_node = self.node_name
         if self.node_name is None:
             self.node_name = self.source_node
+        
+        # Derive message from title or description if not provided
+        if self.message is None:
+            if self.title:
+                self.message = self.title
+            elif self.description:
+                self.message = self.description
+            else:
+                self.message = f"{self.signal_type.value} detected"
+        
+        # Derive title/description from message if not provided
         if self.title is None:
             self.title = self.message
         if self.description is None:

@@ -10,7 +10,15 @@ from vertiguard.actions.notifications import NotificationManager
 from vertiguard.config.loader import get_config, load_config, set_config
 from vertiguard.config.schema import VertiGuardConfig
 from vertiguard.dashboard.templates import get_dashboard_definition
-from vertiguard.decorators import trace as trace_module
+from vertiguard.decorators.trace import (
+    set_evaluation_engine,
+    set_datadog_client,
+    trace as trace_decorator,
+    workflow as workflow_decorator,
+    llm as llm_decorator,
+    task as task_decorator,
+    agent as agent_decorator,
+)
 from vertiguard.detection.monitors import MonitorManager
 from vertiguard.evaluation.engine import EvaluationEngine
 from vertiguard.evaluation.gemini_judge import EvaluationResult, GeminiJudge
@@ -61,8 +69,8 @@ class VertiGuard:
         )
 
         # Wire up decorators
-        trace_module.set_evaluation_engine(self.evaluation_engine)
-        trace_module.set_datadog_client(self.datadog_client)
+        set_evaluation_engine(self.evaluation_engine)
+        set_datadog_client(self.datadog_client)
 
         # Enable LLM Observability
         self.llmobs.enable()
@@ -88,23 +96,23 @@ class VertiGuard:
 
     def trace(self, node_name: str, **kwargs):
         """Create a trace decorator for a node."""
-        return trace_module.trace(node_name, **kwargs)
+        return trace_decorator(node_name, **kwargs)
 
     def workflow(self, node_name: str, **kwargs):
         """Create a workflow trace decorator."""
-        return trace_module.workflow(node_name, **kwargs)
+        return workflow_decorator(node_name, **kwargs)
 
     def llm(self, node_name: str, **kwargs):
         """Create an LLM trace decorator."""
-        return trace_module.llm(node_name, **kwargs)
+        return llm_decorator(node_name, **kwargs)
 
     def task(self, node_name: str, **kwargs):
         """Create a task trace decorator."""
-        return trace_module.task(node_name, **kwargs)
+        return task_decorator(node_name, **kwargs)
 
     def agent(self, node_name: str, **kwargs):
         """Create an agent trace decorator."""
-        return trace_module.agent(node_name, **kwargs)
+        return agent_decorator(node_name, **kwargs)
 
     # =========================================================================
     # SETUP

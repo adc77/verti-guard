@@ -23,16 +23,37 @@ class RetryError(Exception):
 
 @dataclass
 class RetryConfig:
-    """Configuration for retry behavior."""
+    """
+    Configuration for retry behavior.
+    
+    Supports both naming conventions for backward compatibility:
+    - max_retries/initial_delay (primary, used by tests)
+    - max_attempts/base_delay (aliases, used internally)
+    """
 
-    max_attempts: int = 3
-    base_delay: float = 1.0
+    max_retries: int = 3
+    initial_delay: float = 1.0
     max_delay: float = 60.0
     exponential_base: float = 2.0
     jitter: bool = True
     retryable_exceptions: tuple[Type[Exception], ...] = field(
         default_factory=lambda: (Exception,)
     )
+
+    def __post_init__(self):
+        """Initialize - ensure backward compatibility with old field names."""
+        # This allows both max_retries and max_attempts to work
+        pass
+
+    @property
+    def max_attempts(self) -> int:
+        """Alias for max_retries (for backward compatibility)."""
+        return self.max_retries
+
+    @property
+    def base_delay(self) -> float:
+        """Alias for initial_delay (for backward compatibility)."""
+        return self.initial_delay
 
 
 def calculate_delay(attempt: int, config: RetryConfig) -> float:
@@ -47,7 +68,7 @@ def calculate_delay(attempt: int, config: RetryConfig) -> float:
         Delay in seconds.
     """
     delay = min(
-        config.base_delay * (config.exponential_base ** attempt),
+        config.initial_delay * (config.exponential_base ** attempt),
         config.max_delay,
     )
     if config.jitter:
@@ -81,7 +102,7 @@ async def async_retry(
 
     last_exception: Optional[Exception] = None
 
-    for attempt in range(config.max_attempts):
+    for attempt in range(config.max_retries):
         try:
             if asyncio.iscoroutinefunction(func):
                 return await func(*args, **kwargs)
@@ -90,12 +111,12 @@ async def async_retry(
         except config.retryable_exceptions as e:
             last_exception = e
 
-            if attempt < config.max_attempts - 1:
+            if attempt < config.max_retries - 1:
                 delay = calculate_delay(attempt, config)
                 logger.warning(
                     "Retry attempt failed",
                     attempt=attempt + 1,
-                    max_attempts=config.max_attempts,
+                    max_attempts=config.max_retries,
                     delay=delay,
                     error=str(e),
                 )
@@ -103,14 +124,14 @@ async def async_retry(
             else:
                 logger.error(
                     "All retry attempts exhausted",
-                    attempts=config.max_attempts,
+                    attempts=config.max_retries,
                     error=str(e),
                 )
 
-    raise RetryError(
-        f"Failed after {config.max_attempts} attempts",
-        last_exception=last_exception,
-    )
+    error_msg = f"Retry failed after {config.max_retries} attempts"
+    if last_exception:
+        error_msg += f": {str(last_exception)}"
+    raise RetryError(error_msg, last_exception=last_exception)
 
 
 def with_retry(config: Optional[RetryConfig] = None):

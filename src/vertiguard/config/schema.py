@@ -46,13 +46,11 @@ class NodeConfig(BaseModel):
     description: str = ""
     expected_behaviors: list[str] = Field(default_factory=list)
     unexpected_behaviors: list[str] = Field(default_factory=list)
-    adherence_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
+    adherence_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
     latency_warning_ms: int = Field(default=3000)
     latency_critical_ms: int = Field(default=10000)
     evaluation_prompts: dict[str, str] = Field(default_factory=dict)
-    security_checks: list[str] = Field(
-        default_factory=lambda: ["pii_detection", "prompt_injection"]
-    )
+    security_checks: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
 
@@ -89,8 +87,16 @@ class WebhookConfig(BaseModel):
 class IntegrationsConfig(BaseModel):
     """External integrations configuration."""
     slack: SlackConfig = Field(default_factory=SlackConfig)
-    pagerduty: PagerDutyConfig = Field(default_factory=PagerDutyConfig)
+    pagerduty: Optional[PagerDutyConfig] = Field(default_factory=PagerDutyConfig)
     webhooks: list[WebhookConfig] = Field(default_factory=list)
+
+    @field_validator("pagerduty", mode="before")
+    @classmethod
+    def validate_pagerduty(cls, v: Any) -> Any:
+        """Handle None values for pagerduty config."""
+        if v is None:
+            return PagerDutyConfig()
+        return v
 
 
 class AlertConfig(BaseModel):
@@ -100,7 +106,7 @@ class AlertConfig(BaseModel):
     metric: str
     condition: str  # gt, lt, gte, lte
     threshold: float
-    window_minutes: int = 5
+    window_minutes: int = 15
     severity: str = "warning"  # critical, warning, info
     notify: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)

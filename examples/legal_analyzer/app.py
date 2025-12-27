@@ -22,6 +22,9 @@ import structlog
 
 import vertiguard
 
+from dotenv import load_dotenv
+load_dotenv()
+
 logger = structlog.get_logger()
 
 
@@ -96,7 +99,7 @@ class LegalDocumentAnalyzer:
         self.vg = vertiguard.init(config_path)
 
         # Initialize Gemini for document processing
-        api_key = os.environ.get("GOOGLE_API_KEY")
+        api_key = os.getenv("GOOGLE_API_KEY")
         if not api_key:
             raise ValueError("GOOGLE_API_KEY environment variable not set")
         self.client = genai.Client(api_key=api_key)
@@ -322,7 +325,7 @@ async def run_demo():
 
     # Check for required environment variables
     required_vars = ["DD_API_KEY", "DD_APP_KEY", "GOOGLE_API_KEY"]
-    missing = [v for v in required_vars if not os.environ.get(v)]
+    missing = [v for v in required_vars if not os.getenv(v)]
 
     if missing:
         print(f"\nMissing required environment variables: {', '.join(missing)}")

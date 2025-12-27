@@ -40,8 +40,19 @@ def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
     def default_serializer(o: Any) -> Any:
         if isinstance(o, datetime):
             return o.isoformat()
+        # Try to get string representation for custom objects
+        if hasattr(o, "__str__") and type(o).__str__ is not object.__str__:
+            # Use __str__ if it's been overridden (not the default object.__str__)
+            return str(o)
+        if hasattr(o, "__repr__") and type(o).__repr__ is not object.__repr__:
+            # Use __repr__ if it's been overridden
+            return repr(o)
         if hasattr(o, "__dict__"):
-            return o.__dict__
+            # Try to serialize as dict
+            try:
+                return {k: default_serializer(v) for k, v in o.__dict__.items()}
+            except (TypeError, ValueError):
+                return str(o)
         return str(o)
 
     kwargs.setdefault("default", default_serializer)
@@ -53,28 +64,32 @@ def safe_json_dumps(obj: Any, **kwargs: Any) -> str:
         return json.dumps({"error": f"Serialization failed: {str(e)}", "type": str(type(obj))})
 
 
-def safe_json_loads(text: str) -> Optional[dict[str, Any]]:
+def safe_json_loads(text: str, default: Optional[Any] = None) -> Optional[Any]:
     """
     Safely parse a JSON string.
 
     Args:
         text: JSON string to parse.
+        default: Default value to return if parsing fails.
 
     Returns:
-        Parsed dictionary or None if parsing fails.
+        Parsed JSON (dict, list, or primitive) or default value if parsing fails.
     """
+    if not text or not text.strip():
+        return default
+
     try:
         return json.loads(text)
     except (json.JSONDecodeError, TypeError):
-        return None
+        return default
 
 
-def extract_json_from_text(text: str) -> Optional[dict[str, Any]]:
+def extract_json_from_text(text: str) -> Optional[Any]:
     """
-    Extract JSON object from text that may contain markdown or other content.
+    Extract JSON object or array from text that may contain markdown or other content.
 
     Handles common cases like:
-    - Raw JSON
+    - Raw JSON (objects or arrays)
     - JSON wrapped in markdown code blocks
     - JSON embedded in other text
 
@@ -82,7 +97,7 @@ def extract_json_from_text(text: str) -> Optional[dict[str, Any]]:
         text: Text potentially containing JSON.
 
     Returns:
-        Parsed dictionary or None if no valid JSON found.
+        Parsed JSON (dict, list, or primitive) or None if no valid JSON found.
     """
     text = text.strip()
 
@@ -105,6 +120,22 @@ def extract_json_from_text(text: str) -> Optional[dict[str, Any]]:
     if result is not None:
         return result
 
+    # Try to find JSON array first (simpler pattern)
+    bracket_start = text.find("[")
+    if bracket_start != -1:
+        bracket_count = 0
+        for i, char in enumerate(text[bracket_start:], bracket_start):
+            if char == "[":
+                bracket_count += 1
+            elif char == "]":
+                bracket_count -= 1
+                if bracket_count == 0:
+                    candidate = text[bracket_start : i + 1]
+                    result = safe_json_loads(candidate)
+                    if result is not None:
+                        return result
+                    break
+
     # Try to find JSON object in text
     json_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
     matches = re.findall(json_pattern, text, re.DOTALL)
@@ -114,7 +145,7 @@ def extract_json_from_text(text: str) -> Optional[dict[str, Any]]:
         if result is not None:
             return result
 
-    # Try to find nested JSON with a more permissive pattern
+    # Try to find nested JSON object with a more permissive pattern
     brace_start = text.find("{")
     if brace_start != -1:
         brace_count = 0
@@ -201,10 +232,29 @@ def serialize_for_logging(
     try:
         # Try to serialize as JSON first
         json_str = safe_json_dumps(obj)
-        if len(json_str) > max_string_length:
-            return truncate_string(json_str, max_string_length)
-        return json.loads(json_str)
+        parsed = json.loads(json_str)
+        
+        # If it's a dict with error key, it means serialization partially failed
+        # Try to preserve the string representation
+        if isinstance(parsed, dict) and "error" in parsed:
+            # Try __repr__ or __str__ instead
+            if hasattr(obj, "__repr__"):
+                str_repr = repr(obj)
+            else:
+                str_repr = str(obj)
+            return truncate_string(str_repr, max_string_length)
+        
+        # Recursively process nested structures
+        if isinstance(parsed, dict):
+            return {k: serialize_for_logging(v, max_string_length, max_depth - 1) for k, v in parsed.items()}
+        elif isinstance(parsed, list):
+            return [serialize_for_logging(item, max_string_length, max_depth - 1) for item in parsed]
+        
+        return parsed
     except (TypeError, ValueError, json.JSONDecodeError):
         # Fall back to string representation
-        str_repr = str(obj)
+        if hasattr(obj, "__repr__"):
+            str_repr = repr(obj)
+        else:
+            str_repr = str(obj)
         return truncate_string(str_repr, max_string_length)

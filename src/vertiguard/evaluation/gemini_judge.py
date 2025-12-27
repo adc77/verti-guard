@@ -51,8 +51,8 @@ class BehaviorCheckResult:
     """Result of a single behavior check."""
     behavior: str
     passed: bool
-    confidence: float
     reasoning: str
+    confidence: float = 0.0
     evidence: Optional[str] = None
 
 
@@ -150,9 +150,13 @@ class GeminiJudge:
         if not expected_behaviors and not unexpected_behaviors:
             return EvaluationResult(score=1.0, flagged=False)
 
+        input_str = truncate_string(str(input_data), 3000)
+        output_str = truncate_string(str(output_data), 3000)
         prompt = BATCH_BEHAVIOR_CHECK_PROMPT.format(
-            input_data=truncate_string(str(input_data), 3000),
-            output_data=truncate_string(str(output_data), 3000),
+            input=input_str,
+            input_data=input_str,
+            output=output_str,
+            output_data=output_str,
             expected_behaviors="\n".join(f"- {b}" for b in expected_behaviors),
             unexpected_behaviors="\n".join(f"- {b}" for b in unexpected_behaviors),
         )
@@ -258,11 +262,14 @@ class GeminiJudge:
             flag_category = classification["category"]
             total_tokens += classification.get("tokens_used", 0)
 
+        # Flag if checks failed or score is below threshold
+        is_flagged = len(checks_failed) > 0 or score < 0.5
+        
         return EvaluationResult(
             score=score,
-            flagged=len(checks_failed) > 0,
-            flag_reason=flag_reason,
-            flag_category=flag_category,
+            flagged=is_flagged,
+            flag_reason=flag_reason if is_flagged else None,
+            flag_category=flag_category if is_flagged else None,
             checks_passed=checks_passed,
             checks_failed=checks_failed,
             eval_tokens_used=total_tokens,
@@ -320,10 +327,14 @@ class GeminiJudge:
         passed_count = len(checks_passed) + (len(unexpected_behaviors) - unexpected_failures)
         score = passed_count / total_checks if total_checks > 0 else 1.0
 
+        # Flag if checks failed or score is below threshold
+        is_flagged = len(checks_failed) > 0 or score < 0.5
+        
         return EvaluationResult(
             score=score,
-            flagged=len(checks_failed) > 0,
-            flag_reason=result_data.get("overall_assessment"),
+            flagged=is_flagged,
+            flag_reason=result_data.get("overall_assessment") if is_flagged else None,
+            flag_category="low_score" if score < 0.5 and len(checks_failed) == 0 else None,
             checks_passed=checks_passed,
             checks_failed=checks_failed,
             raw_evaluation=result_data,
@@ -339,9 +350,13 @@ class GeminiJudge:
         context: Optional[dict[str, Any]] = None,
     ) -> dict[str, Any]:
         """Check if a specific behavior is exhibited in the output."""
+        input_str = truncate_string(str(input_data), 2000)
+        output_str = truncate_string(str(output_data), 2000)
         prompt = BEHAVIOR_CHECK_PROMPT.format(
-            input_data=truncate_string(str(input_data), 2000),
-            output_data=truncate_string(str(output_data), 2000),
+            input=input_str,
+            input_data=input_str,
+            output=output_str,
+            output_data=output_str,
             behavior=behavior,
             context=safe_json_dumps(context) if context else "None",
             check_type="present" if should_pass else "absent",
@@ -390,10 +405,14 @@ class GeminiJudge:
             f"- {check.behavior}: {check.reasoning}" for check in failed_checks
         )
 
+        input_str = truncate_string(str(input_data), 1500)
+        output_str = truncate_string(str(output_data), 1500)
         prompt = ROOT_CAUSE_CLASSIFICATION_PROMPT.format(
-            input_data=truncate_string(str(input_data), 1500),
-            output_data=truncate_string(str(output_data), 1500),
+            input_data=input_str,
+            output_data=output_str,
             failures=failures_text,
+            behavior="",  # Placeholder for behavior analysis
+            reasoning="",  # Placeholder for reasoning
         )
 
         try:
@@ -448,9 +467,12 @@ class GeminiJudge:
 
         self._setup_client()
 
+        input_str = truncate_string(str(input_data), 2000)
+        output_str = truncate_string(str(output_data), 2000)
         prompt = SECURITY_CHECK_PROMPT.format(
-            input_data=truncate_string(str(input_data), 2000),
-            output_data=truncate_string(str(output_data), 2000),
+            input_data=input_str,
+            output=output_str,
+            output_data=output_str,
             checks=safe_json_dumps(checks),
         )
 

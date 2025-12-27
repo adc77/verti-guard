@@ -117,8 +117,12 @@ class PIIScanner(SecurityScanner):
 
         Args:
             enabled_patterns: List of pattern names to enable. If None, all are enabled.
+                             If empty list [], no patterns are enabled.
         """
-        self.enabled_patterns = enabled_patterns or list(self.PII_PATTERNS.keys())
+        if enabled_patterns is None:
+            self.enabled_patterns = list(self.PII_PATTERNS.keys())
+        else:
+            self.enabled_patterns = enabled_patterns
 
     @property
     def name(self) -> str:
@@ -129,6 +133,16 @@ class PIIScanner(SecurityScanner):
         findings = []
         max_severity = ScanSeverity.INFO
 
+        # If no patterns enabled, return empty result
+        if not self.enabled_patterns:
+            return ScanResult(
+                scanner_name=self.name,
+                detected=False,
+                severity=ScanSeverity.INFO,
+                findings=[],
+                summary=None,
+            )
+
         for pattern_name in self.enabled_patterns:
             if pattern_name not in self.PII_PATTERNS:
                 continue
@@ -137,14 +151,16 @@ class PIIScanner(SecurityScanner):
             matches = re.findall(pattern_info["pattern"], text, re.IGNORECASE)
 
             for match in matches:
-                # Redact part of the match for safety
-                redacted = self._redact(match)
+                # Store original value for testing/debugging, redact for evidence
+                original_value = match if isinstance(match, str) else str(match)
+                redacted = self._redact(original_value)
 
                 findings.append({
                     "type": pattern_name,
                     "description": pattern_info["description"],
                     "severity": pattern_info["severity"].value,
                     "evidence": redacted,
+                    "value": original_value,  # Store original for testing
                 })
 
                 if self._severity_order(pattern_info["severity"]) > self._severity_order(max_severity):
@@ -183,7 +199,7 @@ class PromptInjectionScanner(SecurityScanner):
     INJECTION_PATTERNS = [
         # Instruction override attempts
         (r"ignore (?:all |any )?(?:previous|above|prior) (?:instructions?|prompts?)", ScanSeverity.HIGH),
-        (r"disregard (?:all |any )?(?:previous|above|prior)", ScanSeverity.HIGH),
+        (r"disregard (?:all |any )?(?:previous|above|prior|your (?:training|instructions?|prompts?))", ScanSeverity.HIGH),
         (r"forget (?:everything|all|what)", ScanSeverity.HIGH),
 
         # Role manipulation
@@ -254,8 +270,8 @@ class PromptInjectionScanner(SecurityScanner):
 class ContentScanner(SecurityScanner):
     """Scanner for detecting harmful or sensitive content."""
 
-    # Content patterns to check
-    CONTENT_PATTERNS = {
+    # Default content patterns to check
+    DEFAULT_PATTERNS = {
         "violence": {
             "keywords": ["kill", "murder", "attack", "harm", "hurt", "weapon"],
             "severity": ScanSeverity.HIGH,
@@ -270,6 +286,42 @@ class ContentScanner(SecurityScanner):
         },
     }
 
+    # Topic-based patterns
+    TOPIC_PATTERNS = {
+        "medical_records": {
+            "keywords": ["diagnosis", "patient", "medical record", "treatment", "prescription", "symptoms"],
+            "severity": ScanSeverity.HIGH,
+        },
+        "financial_details": {
+            "keywords": ["account balance", "credit card", "bank account", "ssn", "social security"],
+            "severity": ScanSeverity.CRITICAL,
+        },
+        "legal_advice": {
+            "keywords": ["legal opinion", "you should sue", "file a lawsuit", "legal action"],
+            "severity": ScanSeverity.MEDIUM,
+        },
+    }
+
+    def __init__(self, sensitive_topics: Optional[list[str]] = None):
+        """
+        Initialize the content scanner.
+
+        Args:
+            sensitive_topics: List of sensitive topic names to scan for.
+                             If None or empty, uses default patterns only.
+        """
+        self.sensitive_topics = sensitive_topics or []
+        self._build_patterns()
+
+    def _build_patterns(self):
+        """Build the content patterns based on sensitive topics."""
+        self.CONTENT_PATTERNS = self.DEFAULT_PATTERNS.copy()
+        
+        # Add topic-specific patterns if requested
+        for topic in self.sensitive_topics:
+            if topic in self.TOPIC_PATTERNS:
+                self.CONTENT_PATTERNS[topic] = self.TOPIC_PATTERNS[topic]
+
     @property
     def name(self) -> str:
         return "harmful_content"
@@ -278,6 +330,16 @@ class ContentScanner(SecurityScanner):
         """Scan text for harmful content."""
         findings = []
         text_lower = text.lower()
+
+        # Only scan if we have patterns configured
+        if not self.CONTENT_PATTERNS:
+            return ScanResult(
+                scanner_name=self.name,
+                detected=False,
+                severity=ScanSeverity.INFO,
+                findings=[],
+                summary=None,
+            )
 
         for category, config in self.CONTENT_PATTERNS.items():
             for keyword in config["keywords"]:

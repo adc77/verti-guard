@@ -343,3 +343,157 @@ class NotificationManager:
             logger.info("Webhook sent", url=config.url)
         except Exception as e:
             logger.error("Failed to send webhook", url=config.url, error=str(e))
+
+    async def send_slack(
+        self,
+        message: str,
+        channel: Optional[str] = None,
+        severity: str = "info",
+        blocks: Optional[list[dict[str, Any]]] = None,
+    ) -> bool:
+        """
+        Send a Slack notification.
+
+        Args:
+            message: Message text.
+            channel: Channel to send to (uses config default if not provided).
+            severity: Severity level (info, warning, critical).
+            blocks: Optional Slack block kit blocks.
+
+        Returns:
+            True if sent successfully, False if disabled or failed.
+        """
+        if not self.config.slack.enabled:
+            return False
+
+        if not self.config.slack.webhook_url:
+            return False
+
+        target_channel = channel or self.config.slack.channel
+
+        severity_colors = {
+            "critical": "#FF0000",
+            "warning": "#FFA500",
+            "error": "#FF0000",
+            "info": "#00FF00",
+        }
+
+        payload: dict[str, Any] = {
+            "channel": target_channel,
+            "text": message,
+        }
+
+        if blocks:
+            payload["blocks"] = blocks
+        else:
+            payload["attachments"] = [
+                {
+                    "color": severity_colors.get(severity.lower(), "#808080"),
+                    "text": message,
+                    "footer": "VertiGuard",
+                    "ts": int(time.time()),
+                }
+            ]
+
+        try:
+            await self._post_to_slack(payload)
+            return True
+        except Exception:
+            return False
+
+    async def send_pagerduty(
+        self,
+        title: str,
+        description: str,
+        severity: str = "warning",
+    ) -> bool:
+        """
+        Send a PagerDuty event.
+
+        Args:
+            title: Event title.
+            description: Event description.
+            severity: Severity level (critical, error, warning, info).
+
+        Returns:
+            True if sent successfully, False if disabled or failed.
+        """
+        if not self.config.pagerduty or not self.config.pagerduty.enabled:
+            return False
+
+        if not self.config.pagerduty.integration_key:
+            return False
+
+        pd_severity = self.config.pagerduty.severity_mapping.get(
+            severity.lower(), severity.lower()
+        )
+
+        payload = {
+            "routing_key": self.config.pagerduty.integration_key,
+            "event_action": "trigger",
+            "payload": {
+                "summary": title,
+                "severity": pd_severity,
+                "source": "vertiguard",
+                "custom_details": {
+                    "description": description,
+                },
+            },
+        }
+
+        try:
+            client = await self._get_client()
+            response = await client.post(
+                "https://events.pagerduty.com/v2/enqueue",
+                json=payload,
+            )
+            response.raise_for_status()
+            logger.info("PagerDuty event sent", title=title)
+            return True
+        except Exception as e:
+            logger.error("Failed to send PagerDuty event", error=str(e))
+            return False
+
+    async def send_webhook(
+        self,
+        event_type: str,
+        payload: dict[str, Any],
+        webhook_name: Optional[str] = None,
+    ) -> bool:
+        """
+        Send a webhook notification.
+
+        Args:
+            event_type: Type of event.
+            payload: Payload data to send.
+            webhook_name: Optional specific webhook name to use.
+
+        Returns:
+            True if sent successfully, False if no webhooks or failed.
+        """
+        if not self.config.webhooks:
+            return False
+
+        webhooks_to_use = (
+            [w for w in self.config.webhooks if w.name == webhook_name]
+            if webhook_name
+            else self.config.webhooks
+        )
+
+        if not webhooks_to_use:
+            return False
+
+        success = False
+        for webhook in webhooks_to_use:
+            if event_type in webhook.events:
+                data = {
+                    "event": event_type,
+                    **payload,
+                }
+                try:
+                    await self._send_webhook(webhook, data)
+                    success = True
+                except Exception:
+                    pass  # Continue to next webhook
+
+        return success
