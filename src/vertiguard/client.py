@@ -7,6 +7,7 @@ import structlog
 
 from vertiguard.actions.incidents import IncidentManager
 from vertiguard.actions.notifications import NotificationManager
+from vertiguard.agents.monitor import AgentMonitor
 from vertiguard.config.loader import get_config, load_config, set_config
 from vertiguard.config.schema import VertiGuardConfig
 from vertiguard.dashboard.templates import get_dashboard_definition
@@ -20,6 +21,7 @@ from vertiguard.decorators.trace import (
     agent as agent_decorator,
 )
 from vertiguard.detection.monitors import MonitorManager
+from vertiguard.errors.tracker import ErrorTracker
 from vertiguard.evaluation.engine import EvaluationEngine
 from vertiguard.evaluation.gemini_judge import EvaluationResult, GeminiJudge
 from vertiguard.telemetry.datadog_client import DatadogClient
@@ -67,6 +69,16 @@ class VertiGuard:
         self.incident_manager = IncidentManager(
             self.datadog_client, self.notification_manager
         )
+
+        # NEW: Error tracking (Sentry-style)
+        self.error_tracker = ErrorTracker(
+            self.datadog_client,
+            environment=config.environment.value,
+            release=config.version,
+        )
+
+        # NEW: Agent behavior monitoring
+        self.agent_monitor = AgentMonitor(self.datadog_client)
 
         # Wire up decorators
         set_evaluation_engine(self.evaluation_engine)
