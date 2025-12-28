@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Comprehensive VertiGuard Component Test Script
+Comprehensive detra Component Test Script
 
-This script tests each component and feature of VertiGuard systematically.
+This script tests each component and feature of detra systematically.
 Run this to explore and validate all functionality.
 
 Usage:
-    python test_vertiguard_comprehensive.py
+    python test_detra_comprehensive.py
 
 Requirements:
     - DD_API_KEY, DD_APP_KEY environment variables (or set in .env)
@@ -38,11 +38,11 @@ structlog.configure(
 
 logger = structlog.get_logger()
 
-# Import VertiGuard components
-import vertiguard
-from vertiguard.config.loader import load_config
-from vertiguard.config.schema import (
-    VertiGuardConfig,
+# Import detra components
+import detra
+from detra.config.loader import load_config
+from detra.config.schema import (
+    detraConfig,
     DatadogConfig,
     GeminiConfig,
     NodeConfig,
@@ -50,16 +50,16 @@ from vertiguard.config.schema import (
     IntegrationsConfig,
     ThresholdsConfig,
 )
-from vertiguard.evaluation.engine import EvaluationEngine
-from vertiguard.evaluation.gemini_judge import GeminiJudge
-from vertiguard.security.scanners import PIIScanner, PromptInjectionScanner
-from vertiguard.telemetry.datadog_client import DatadogClient
-from vertiguard.actions.notifications import NotificationManager
-from vertiguard.actions.incidents import IncidentManager
-from vertiguard.actions.cases import CaseManager
-from vertiguard.detection.monitors import MonitorManager
-# from vertiguard.utils.retry import retry_with_backoff
-from vertiguard.utils.serialization import safe_json_dumps
+from detra.evaluation.engine import EvaluationEngine
+from detra.evaluation.gemini_judge import GeminiJudge
+from detra.security.scanners import PIIScanner, PromptInjectionScanner
+from detra.telemetry.datadog_client import DatadogClient
+from detra.actions.notifications import NotificationManager
+from detra.actions.incidents import IncidentManager
+from detra.actions.cases import CaseManager
+from detra.detection.monitors import MonitorManager
+# from detra.utils.retry import retry_with_backoff
+from detra.utils.serialization import safe_json_dumps
 
 
 # ============================================================================
@@ -85,17 +85,17 @@ def print_result(success: bool, message: str = ""):
     print(f"{status} {message}")
 
 
-def create_test_config() -> VertiGuardConfig:
+def create_test_config() -> detraConfig:
     """Create a test configuration."""
-    return VertiGuardConfig(
-        app_name="vertiguard-test",
+    return detraConfig(
+        app_name="detra-test",
         version="1.0.0",
-        environment=vertiguard.config.schema.Environment.DEVELOPMENT,
+        environment=detra.config.schema.Environment.DEVELOPMENT,
         datadog=DatadogConfig(
             api_key=os.getenv("DD_API_KEY", "test-api-key"),
             app_key=os.getenv("DD_APP_KEY", "test-app-key"),
             site=os.getenv("DD_SITE", "datadoghq.com"),
-            service="vertiguard-test",
+            service="detra-test",
             env="development",
             version="1.0.0",
         ),
@@ -142,7 +142,7 @@ async def test_config_loading():
 
     try:
         # Test loading from file if exists
-        config_path = Path("vertiguard.yaml")
+        config_path = Path("detra.yaml")
         if config_path.exists():
             config = load_config(config_path=str(config_path))
             print_result(True, f"Loaded config from {config_path}")
@@ -150,7 +150,7 @@ async def test_config_loading():
             print(f"  Environment: {config.environment.value}")
             print(f"  Nodes: {list(config.nodes.keys())}")
         else:
-            print_result(False, "vertiguard.yaml not found, using programmatic config")
+            print_result(False, "detra.yaml not found, using programmatic config")
             config = create_test_config()
             print_result(True, "Created programmatic config")
 
@@ -166,14 +166,14 @@ async def test_config_loading():
         raise
 
 
-async def test_client_initialization(config: VertiGuardConfig):
+async def test_client_initialization(config: detraConfig):
     """Test 2: Client Initialization"""
     print_test("Client Initialization")
 
     try:
         # Initialize client
-        vg = vertiguard.VertiGuard(config)
-        print_result(True, "VertiGuard client initialized")
+        vg = detra.detra(config)
+        print_result(True, "detra client initialized")
 
         # Check components
         assert vg.datadog_client is not None, "Datadog client should be initialized"
@@ -186,8 +186,8 @@ async def test_client_initialization(config: VertiGuardConfig):
         print_result(True, "All components initialized")
 
         # Test module-level init
-        vg2 = vertiguard.init(config_path=None)
-        assert vertiguard.is_initialized(), "Global client should be initialized"
+        vg2 = detra.init(config_path=None)
+        assert detra.is_initialized(), "Global client should be initialized"
         print_result(True, "Module-level initialization works")
 
         return vg
@@ -197,7 +197,7 @@ async def test_client_initialization(config: VertiGuardConfig):
         raise
 
 
-async def test_decorators(vg: vertiguard.VertiGuard):
+async def test_decorators(vg: detra.detra):
     """Test 3: Decorators"""
     print_test("Decorators")
 
@@ -261,7 +261,7 @@ async def test_decorators(vg: vertiguard.VertiGuard):
         raise
 
 
-async def test_evaluation_engine(vg: vertiguard.VertiGuard):
+async def test_evaluation_engine(vg: detra.detra):
     """Test 4: Evaluation Engine"""
     print_test("Evaluation Engine")
 
@@ -311,7 +311,7 @@ async def test_evaluation_engine(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_security_scanners(vg: vertiguard.VertiGuard):
+async def test_security_scanners(vg: detra.detra):
     """Test 5: Security Scanners"""
     print_test("Security Scanners")
 
@@ -354,7 +354,7 @@ async def test_security_scanners(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_telemetry(vg: vertiguard.VertiGuard):
+async def test_telemetry(vg: detra.detra):
     """Test 6: Telemetry (Datadog Client)"""
     print_test("Telemetry - Datadog Client")
 
@@ -370,7 +370,7 @@ async def test_telemetry(vg: vertiguard.VertiGuard):
         if os.getenv("DD_API_KEY") and os.getenv("DD_API_KEY") != "test-api-key":
             try:
                 await vg.datadog_client.submit_metric(
-                    metric="vertiguard.test.metric",
+                    metric="detra.test.metric",
                     value=1.0,
                     tags=["test:comprehensive", "component:telemetry"],
                 )
@@ -388,7 +388,7 @@ async def test_telemetry(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_notifications(vg: vertiguard.VertiGuard):
+async def test_notifications(vg: detra.detra):
     """Test 7: Notifications"""
     print_test("Notifications")
 
@@ -418,7 +418,7 @@ async def test_notifications(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_incidents(vg: vertiguard.VertiGuard):
+async def test_incidents(vg: detra.detra):
     """Test 8: Incident Management"""
     print_test("Incident Management")
 
@@ -447,13 +447,13 @@ async def test_incidents(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_cases(vg: vertiguard.VertiGuard):
+async def test_cases(vg: detra.detra):
     """Test 9: Case Management"""
     print_test("Case Management")
 
     try:
         # Case manager might not be directly accessible, test through actions
-        from vertiguard.actions.cases import CaseManager
+        from detra.actions.cases import CaseManager
         case_manager = CaseManager(vg.datadog_client)
 
         # Test case creation structure
@@ -478,7 +478,7 @@ async def test_cases(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_monitors(vg: vertiguard.VertiGuard):
+async def test_monitors(vg: detra.detra):
     """Test 10: Monitor Management"""
     print_test("Monitor Management")
 
@@ -502,7 +502,7 @@ async def test_monitors(vg: vertiguard.VertiGuard):
         traceback.print_exc()
 
 
-async def test_dashboard(vg: vertiguard.VertiGuard):
+async def test_dashboard(vg: detra.detra):
     """Test 11: Dashboard Creation"""
     print_test("Dashboard Creation")
 
@@ -565,7 +565,7 @@ async def test_utilities():
         traceback.print_exc()
 
 
-async def test_integration_workflow(vg: vertiguard.VertiGuard):
+async def test_integration_workflow(vg: detra.detra):
     """Test 13: Full Integration Workflow"""
     print_test("Full Integration Workflow")
 
@@ -604,9 +604,9 @@ async def test_integration_workflow(vg: vertiguard.VertiGuard):
 
 async def run_all_tests():
     """Run all comprehensive tests."""
-    print_section("VertiGuard Comprehensive Component Test Suite")
+    print_section("detra Comprehensive Component Test Suite")
 
-    print("This script will test each component of VertiGuard systematically.")
+    print("This script will test each component of detra systematically.")
     print("Note: Some tests may fail if API keys are not configured.")
     print()
 

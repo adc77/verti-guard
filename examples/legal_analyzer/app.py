@@ -1,7 +1,7 @@
 """
-Legal Document Analyzer - Example VertiGuard Application
+Legal Document Analyzer - Example detra Application
 
-This example demonstrates how to use VertiGuard for monitoring and evaluating
+This example demonstrates how to use detra for monitoring and evaluating
 LLM-powered legal document processing with Datadog integration.
 
 Usage:
@@ -20,7 +20,7 @@ from typing import Any, Optional
 import google.genai as genai
 import structlog
 
-import vertiguard
+import detra
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -79,24 +79,24 @@ Date: January 15, 2024
 
 class LegalDocumentAnalyzer:
     """
-    LLM-powered legal document analyzer with VertiGuard observability.
+    LLM-powered legal document analyzer with detra observability.
 
     Demonstrates:
-    - Using VertiGuard decorators for tracing
+    - Using detra decorators for tracing
     - Entity extraction from legal documents
     - Document summarization
     - Question answering with citations
     """
 
-    def __init__(self, config_path: str = "vertiguard.yaml"):
+    def __init__(self, config_path: str = "detra.yaml"):
         """
-        Initialize the analyzer with VertiGuard.
+        Initialize the analyzer with detra.
 
         Args:
-            config_path: Path to vertiguard.yaml configuration file.
+            config_path: Path to detra.yaml configuration file.
         """
-        # Initialize VertiGuard
-        self.vg = vertiguard.init(config_path)
+        # Initialize detra
+        self.vg = detra.init(config_path)
 
         # Initialize Gemini for document processing
         api_key = os.getenv("GOOGLE_API_KEY")
@@ -106,7 +106,7 @@ class LegalDocumentAnalyzer:
 
         logger.info("LegalDocumentAnalyzer initialized")
 
-    @vertiguard.trace("extract_entities")
+    @detra.trace("extract_entities")
     async def extract_entities(self, document: str) -> dict[str, Any]:
         """
         Extract legal entities from a document.
@@ -152,7 +152,7 @@ JSON Output:"""
             logger.error("Failed to parse entity extraction response", error=str(e))
             return {"parties": [], "dates": [], "amounts": [], "error": str(e)}
 
-    @vertiguard.trace("summarize_document")
+    @detra.trace("summarize_document")
     async def summarize_document(
         self, document: str, max_words: int = 200
     ) -> dict[str, Any]:
@@ -200,7 +200,7 @@ JSON Output:"""
             logger.error("Failed to parse summarization response", error=str(e))
             return {"summary": "", "key_terms": [], "obligations": {}, "error": str(e)}
 
-    @vertiguard.trace("answer_query")
+    @detra.trace("answer_query")
     async def answer_query(
         self, document: str, query: str
     ) -> dict[str, Any]:
@@ -320,7 +320,7 @@ JSON Output:"""
 async def run_demo():
     """Run a demonstration of the legal document analyzer."""
     print("=" * 60)
-    print("Legal Document Analyzer - VertiGuard Demo")
+    print("Legal Document Analyzer - detra Demo")
     print("=" * 60)
 
     # Check for required environment variables
@@ -338,7 +338,7 @@ async def run_demo():
 
     # Get the directory of this script for config path
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(script_dir, "vertiguard.yaml")
+    config_path = os.path.join(script_dir, "detra.yaml")
 
     analyzer = LegalDocumentAnalyzer(config_path)
 
@@ -390,7 +390,7 @@ async def run_interactive():
     print("Commands: 'extract', 'summarize', 'query', 'quit'")
 
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(script_dir, "vertiguard.yaml")
+    config_path = os.path.join(script_dir, "detra.yaml")
 
     analyzer = LegalDocumentAnalyzer(config_path)
     current_document: Optional[str] = None
