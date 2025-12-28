@@ -179,9 +179,15 @@ class VertiGuardTrace:
                 output_data=output_data,
             )
 
+            # Export span to get span_id and trace_id
+            span_dict = LLMObs.export_span(span=span)
+            if not span_dict:
+                logger.warning("Failed to export span for evaluation", node=self.node_name)
+                return eval_result
+
             # Submit evaluation to LLMObs
             LLMObs.submit_evaluation(
-                span=span,
+                span=span_dict,
                 label="adherence_score",
                 metric_type="score",
                 value=eval_result.score,
@@ -189,7 +195,7 @@ class VertiGuardTrace:
 
             if eval_result.flagged:
                 LLMObs.submit_evaluation(
-                    span=span,
+                    span=span_dict,
                     label="flag_category",
                     metric_type="categorical",
                     value=eval_result.flag_category or "unknown",
@@ -202,7 +208,7 @@ class VertiGuardTrace:
             for issue in eval_result.security_issues:
                 if issue.get("detected"):
                     LLMObs.submit_evaluation(
-                        span=span,
+                        span=span_dict,
                         label=f"security_{issue['check']}",
                         metric_type="categorical",
                         value=issue.get("severity", "unknown"),

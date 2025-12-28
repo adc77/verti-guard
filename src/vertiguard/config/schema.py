@@ -16,9 +16,7 @@ class Environment(str, Enum):
 
 class EvalModel(str, Enum):
     """Supported Gemini models for evaluation."""
-    GEMINI_15_PRO = "gemini-1.5-pro"
-    GEMINI_15_FLASH = "gemini-1.5-flash"
-    GEMINI_20_FLASH = "gemini-2.0-flash-exp"
+    GEMINI_MODEL = "gemini-2.5-flash"
 
 
 class DatadogConfig(BaseModel):
@@ -29,6 +27,12 @@ class DatadogConfig(BaseModel):
     service: Optional[str] = None
     env: Optional[str] = None
     version: Optional[str] = None
+    verify_ssl: bool = Field(
+        default=True, description="Verify SSL certificates (set False for development only)"
+    )
+    ssl_cert_path: Optional[str] = Field(
+        default=None, description="Path to SSL certificate bundle (uses certifi by default)"
+    )
 
 
 class GeminiConfig(BaseModel):
@@ -36,7 +40,7 @@ class GeminiConfig(BaseModel):
     api_key: Optional[str] = Field(default=None, description="Gemini API Key")
     project_id: Optional[str] = Field(default=None, description="GCP Project ID for Vertex AI")
     location: str = Field(default="us-central1", description="Vertex AI location")
-    model: EvalModel = Field(default=EvalModel.GEMINI_15_FLASH)
+    model: EvalModel = Field(default=EvalModel.GEMINI_MODEL)
     temperature: float = Field(default=0.1, ge=0.0, le=2.0)
     max_tokens: int = Field(default=1024, ge=1, le=8192)
 
@@ -177,7 +181,7 @@ class VertiGuardSettings(BaseSettings):
 
     vertiguard_app_name: str = Field(default="vertiguard-app", alias="VERTIGUARD_APP_NAME")
     vertiguard_env: str = Field(default="development", alias="VERTIGUARD_ENV")
-    vertiguard_eval_model: str = Field(default="gemini-1.5-flash", alias="VERTIGUARD_EVAL_MODEL")
+    vertiguard_eval_model: str = Field(default="gemini-2.5-flash", alias="VERTIGUARD_EVAL_MODEL")
 
     slack_webhook_url: Optional[str] = Field(default=None, alias="SLACK_WEBHOOK_URL")
     slack_channel: str = Field(default="#llm-alerts", alias="SLACK_CHANNEL")

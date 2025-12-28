@@ -62,7 +62,7 @@ def sample_gemini_config() -> GeminiConfig:
     """Create a sample Gemini configuration."""
     return GeminiConfig(
         api_key="test_gemini_key",
-        model="gemini-1.5-flash",
+        model="gemini-2.5-flash",
         temperature=0.1,
         max_tokens=1024,
     )
@@ -154,7 +154,7 @@ def sample_config_yaml() -> str:
         },
         "gemini": {
             "api_key": "${GOOGLE_API_KEY}",
-            "model": "gemini-1.5-flash",
+            "model": "gemini-2.5-flash",
             "temperature": 0.1,
             "max_tokens": 1024,
         },

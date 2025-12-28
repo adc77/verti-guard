@@ -18,90 +18,64 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
         "title": f"VertiGuard: {app_name} LLM Observability",
         "description": "End-to-end LLM observability dashboard with health metrics, security signals, and actionable insights",
         "widgets": [
-            # Row 1: Health Overview
+            # Row 1: Health Overview - Individual widgets instead of nested group
             {
                 "definition": {
-                    "title": "Application Health",
-                    "type": "group",
-                    "layout_type": "ordered",
-                    "widgets": [
+                    "title": "Overall Adherence Score",
+                    "type": "query_value",
+                    "requests": [
                         {
-                            "definition": {
-                                "title": "Overall Adherence Score",
-                                "type": "query_value",
-                                "requests": [
-                                    {
-                                        "q": "avg:vertiguard.node.adherence_score{*}",
-                                        "aggregator": "avg",
-                                    }
-                                ],
-                                "precision": 2,
-                                "custom_unit": "",
-                                "conditional_formats": [
-                                    {"comparator": ">=", "value": 0.85, "palette": "white_on_green"},
-                                    {"comparator": ">=", "value": 0.70, "palette": "white_on_yellow"},
-                                    {"comparator": "<", "value": 0.70, "palette": "white_on_red"},
-                                ],
-                            }
-                        },
-                        {
-                            "definition": {
-                                "title": "Flag Rate (5m)",
-                                "type": "query_value",
-                                "requests": [
-                                    {
-                                        "q": "sum:vertiguard.node.flagged{*}.as_count() / sum:vertiguard.node.calls{*}.as_count() * 100",
-                                        "aggregator": "avg",
-                                    }
-                                ],
-                                "precision": 1,
-                                "custom_unit": "%",
-                                "conditional_formats": [
-                                    {"comparator": "<=", "value": 5, "palette": "white_on_green"},
-                                    {"comparator": "<=", "value": 15, "palette": "white_on_yellow"},
-                                    {"comparator": ">", "value": 15, "palette": "white_on_red"},
-                                ],
-                            }
-                        },
-                        {
-                            "definition": {
-                                "title": "Error Rate (5m)",
-                                "type": "query_value",
-                                "requests": [
-                                    {
-                                        "q": "sum:vertiguard.node.calls{status:error}.as_count() / sum:vertiguard.node.calls{*}.as_count() * 100",
-                                        "aggregator": "avg",
-                                    }
-                                ],
-                                "precision": 1,
-                                "custom_unit": "%",
-                                "conditional_formats": [
-                                    {"comparator": "<=", "value": 1, "palette": "white_on_green"},
-                                    {"comparator": "<=", "value": 5, "palette": "white_on_yellow"},
-                                    {"comparator": ">", "value": 5, "palette": "white_on_red"},
-                                ],
-                            }
-                        },
-                        {
-                            "definition": {
-                                "title": "Avg Latency",
-                                "type": "query_value",
-                                "requests": [
-                                    {
-                                        "q": "avg:vertiguard.node.latency{*}",
-                                        "aggregator": "avg",
-                                    }
-                                ],
-                                "precision": 0,
-                                "custom_unit": "ms",
-                                "conditional_formats": [
-                                    {"comparator": "<=", "value": 2000, "palette": "white_on_green"},
-                                    {"comparator": "<=", "value": 5000, "palette": "white_on_yellow"},
-                                    {"comparator": ">", "value": 5000, "palette": "white_on_red"},
-                                ],
-                            }
-                        },
+                            "q": "avg:vertiguard.node.adherence_score{*}",
+                            "aggregator": "avg",
+                        }
                     ],
+                    "precision": 2,
+                    "text_align": "center",
+                }
+            },
+            {
+                "definition": {
+                    "title": "Flag Rate (5m)",
+                    "type": "query_value",
+                    "requests": [
+                        {
+                            "q": "sum:vertiguard.node.flagged{*}.as_count() / sum:vertiguard.node.calls{*}.as_count() * 100",
+                            "aggregator": "avg",
+                        }
+                    ],
+                    "precision": 1,
+                    "custom_unit": "%",
+                    "text_align": "center",
+                }
+            },
+            {
+                "definition": {
+                    "title": "Error Rate (5m)",
+                    "type": "query_value",
+                    "requests": [
+                        {
+                            "q": "sum:vertiguard.node.calls{status:error}.as_count() / sum:vertiguard.node.calls{*}.as_count() * 100",
+                            "aggregator": "avg",
+                        }
+                    ],
+                    "precision": 1,
+                    "custom_unit": "%",
+                    "text_align": "center",
+                }
+            },
+            {
+                "definition": {
+                    "title": "Avg Latency",
+                    "type": "query_value",
+                    "requests": [
+                        {
+                            "q": "avg:vertiguard.node.latency{*}",
+                            "aggregator": "avg",
+                        }
+                    ],
+                    "precision": 0,
+                    "custom_unit": "ms",
+                    "text_align": "center",
                 }
             },
             # Row 2: Adherence Trends
@@ -147,37 +121,28 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                     ],
                 }
             },
-            # Row 4: Security Signals
+            # Row 4: Security Signals - Individual widgets instead of nested group
             {
                 "definition": {
-                    "title": "Security Signals",
-                    "type": "group",
-                    "layout_type": "ordered",
-                    "widgets": [
+                    "title": "Security Issues by Type",
+                    "type": "toplist",
+                    "requests": [
                         {
-                            "definition": {
-                                "title": "Security Issues by Type",
-                                "type": "toplist",
-                                "requests": [
-                                    {
-                                        "q": "sum:vertiguard.security.issues{*} by {check}.as_count()",
-                                        "style": {"palette": "red"},
-                                    }
-                                ],
-                            }
-                        },
+                            "q": "sum:vertiguard.security.issues{*} by {check}.as_count()",
+                            "style": {"palette": "red"},
+                        }
+                    ],
+                }
+            },
+            {
+                "definition": {
+                    "title": "Security Issues Over Time",
+                    "type": "timeseries",
+                    "requests": [
                         {
-                            "definition": {
-                                "title": "Security Issues Over Time",
-                                "type": "timeseries",
-                                "requests": [
-                                    {
-                                        "q": "sum:vertiguard.security.issues{*} by {severity}.as_count()",
-                                        "display_type": "bars",
-                                    }
-                                ],
-                            }
-                        },
+                            "q": "sum:vertiguard.security.issues{*} by {severity}.as_count()",
+                            "display_type": "bars",
+                        }
                     ],
                 }
             },

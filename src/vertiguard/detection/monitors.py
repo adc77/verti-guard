@@ -116,8 +116,21 @@ class MonitorManager:
             logger.error(f"Unknown monitor template: {monitor_key}")
             return None
 
+        monitor_name = template["name"]
+        
+        # Check if monitor already exists
+        existing_monitors = await self.client.list_monitors(name_filter=monitor_name)
+        for existing in existing_monitors:
+            if existing["name"] == monitor_name:
+                logger.info(
+                    "Monitor already exists, skipping creation",
+                    name=monitor_name,
+                    id=existing.get("id"),
+                )
+                return {"id": existing.get("id"), "name": existing["name"]}
+
         return await self.client.create_monitor(
-            name=template["name"],
+            name=monitor_name,
             query=template["query"],
             message=template["message"],
             monitor_type=template["type"],
@@ -170,8 +183,21 @@ class MonitorManager:
 {notify_str}
 """
 
+        monitor_name = f"VertiGuard: {alert.name}"
+        
+        # Check if monitor already exists
+        existing_monitors = await self.client.list_monitors(name_filter=monitor_name)
+        for existing in existing_monitors:
+            if existing["name"] == monitor_name:
+                logger.info(
+                    "Monitor already exists, skipping creation",
+                    name=monitor_name,
+                    id=existing.get("id"),
+                )
+                return {"id": existing.get("id"), "name": existing["name"]}
+
         return await self.client.create_monitor(
-            name=f"VertiGuard: {alert.name}",
+            name=monitor_name,
             query=query,
             message=message,
             thresholds={"critical": alert.threshold},

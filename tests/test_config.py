@@ -122,13 +122,13 @@ class TestGeminiConfig:
 
     def test_valid_gemini_config(self, sample_gemini_config):
         """Test creating a valid GeminiConfig."""
-        assert sample_gemini_config.model == "gemini-1.5-flash"
+        assert sample_gemini_config.model == "gemini-2.5-flash"
         assert sample_gemini_config.temperature == 0.1
 
     def test_gemini_config_defaults(self):
         """Test GeminiConfig default values."""
         config = GeminiConfig(api_key="key")
-        assert config.model == "gemini-1.5-flash"
+        assert config.model == "gemini-2.5-flash"
         assert config.temperature == 0.1
         assert config.max_tokens == 1024
 

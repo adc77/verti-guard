@@ -49,7 +49,7 @@ VERTIGUARD_ENV=development  # development, staging, production
 VERTIGUARD_LOG_LEVEL=INFO
 
 # Evaluation Model Configuration
-VERTIGUARD_EVAL_MODEL=gemini-1.5-flash  # gemini-1.5-pro, gemini-1.5-flash, gemini-2.0-flash-exp
+VERTIGUARD_EVAL_MODEL=gemini-2.5-flash
 VERTIGUARD_EVAL_TEMPERATURE=0.1
 VERTIGUARD_EVAL_MAX_TOKENS=1024
 
@@ -246,9 +246,7 @@ class Environment(str, Enum):
 
 
 class EvalModel(str, Enum):
-    GEMINI_15_PRO = "gemini-1.5-pro"
-    GEMINI_15_FLASH = "gemini-1.5-flash"
-    GEMINI_20_FLASH = "gemini-2.0-flash-exp"
+    GEMINI_MODEL = "gemini-2.5-flash
 
 
 class DatadogConfig(BaseModel):
@@ -397,7 +395,7 @@ class VertiGuardSettings(BaseSettings):
     
     vertiguard_app_name: str = Field(default="vertiguard-app", alias="VERTIGUARD_APP_NAME")
     vertiguard_env: str = Field(default="development", alias="VERTIGUARD_ENV")
-    vertiguard_eval_model: str = Field(default="gemini-1.5-flash", alias="VERTIGUARD_EVAL_MODEL")
+    vertiguard_eval_model: str = Field(default="gemini-2.5-flash", alias="VERTIGUARD_EVAL_MODEL")
     
     slack_webhook_url: Optional[str] = Field(default=None, alias="SLACK_WEBHOOK_URL")
     slack_channel: str = Field(default="#llm-alerts", alias="SLACK_CHANNEL")
@@ -3235,7 +3233,7 @@ datadog:
 # Gemini evaluation configuration
 gemini:
   api_key: ${GOOGLE_API_KEY}
-  model: gemini-1.5-flash
+  model: gemini-2.5-flash
   temperature: 0.1
   max_tokens: 1024
 
@@ -3399,7 +3397,7 @@ vg = vertiguard.init("vertiguard.yaml")
 
 # Setup Gemini for the actual LLM calls
 genai.configure(api_key=os.getenv("GOOGLE_API_KEY"))
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 @vg.workflow("legal_document_pipeline")

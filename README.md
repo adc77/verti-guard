@@ -178,7 +178,7 @@ datadog:
 
 gemini:
   api_key: ${GOOGLE_API_KEY}
-  model: gemini-1.5-flash
+  model: gemini-2.5-flash
   temperature: 0.1
   max_tokens: 1024
 
