@@ -31,7 +31,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                         {"comparator": "<", "value": 0.70, "palette": "white_on_red"},
                     ],
                 },
-                "layout": {"x": 0, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 0, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
@@ -43,7 +43,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                     "precision": 1,
                     "custom_unit": "%",
                 },
-                "layout": {"x": 3, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 47, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
@@ -56,17 +56,17 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                         {"comparator": ">", "value": 5, "palette": "white_on_red"},
                     ],
                 },
-                "layout": {"x": 6, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 94, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
-                    "title": "Avg Latency",
+                    "title": "Average Latency",
                     "type": "query_value",
                     "requests": [{"q": "avg:detra.node.latency{*}"}],
                     "precision": 0,
                     "custom_unit": "ms",
                 },
-                "layout": {"x": 9, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 141, "y": 0, "width": 47, "height": 15},
             },
 
             # Row 2: Adherence Trends
@@ -77,13 +77,22 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                     "requests": [
                         {"q": "avg:detra.node.adherence_score{*} by {node}", "display_type": "line"}
                     ],
+                    "yaxis": {
+                        "min": "0",
+                        "max": "1",
+                    },
                     "markers": [
-                        {"value": "y = 0.85", "display_type": "warning dashed"},
-                        {"value": "y = 0.70", "display_type": "error dashed"},
+                        {
+                            "value": "y = 0.85",
+                            "display_type": "warning dashed",
+                        },
+                        {
+                            "value": "y = 0.70",
+                            "display_type": "error dashed",
+                        },
                     ],
-                    "yaxis": {"min": "0", "max": "1"},
                 },
-                "layout": {"x": 0, "y": 2, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 15, "width": 188, "height": 30},
             },
 
             # Row 3: Flags Analysis
@@ -95,7 +104,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                         {"q": "sum:detra.node.flagged{*} by {category}.as_count()", "style": {"palette": "warm"}}
                     ],
                 },
-                "layout": {"x": 0, "y": 5, "width": 6, "height": 3},
+                "layout": {"x": 0, "y": 45, "width": 94, "height": 30},
             },
             {
                 "definition": {
@@ -105,7 +114,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                         {"q": "sum:detra.node.flagged{*} by {node}.as_count()", "style": {"palette": "orange"}}
                     ],
                 },
-                "layout": {"x": 6, "y": 5, "width": 6, "height": 3},
+                "layout": {"x": 94, "y": 45, "width": 94, "height": 30},
             },
 
             # Row 4: Errors
@@ -117,7 +126,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                         {"q": "sum:detra.errors.count{*}.as_count()", "display_type": "bars"}
                     ],
                 },
-                "layout": {"x": 0, "y": 8, "width": 6, "height": 3},
+                "layout": {"x": 0, "y": 75, "width": 94, "height": 30},
             },
             {
                 "definition": {
@@ -127,7 +136,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                         {"q": "sum:detra.errors.count{*} by {exception_type}.as_count()", "style": {"palette": "warm"}}
                     ],
                 },
-                "layout": {"x": 6, "y": 8, "width": 6, "height": 3},
+                "layout": {"x": 94, "y": 75, "width": 94, "height": 30},
             },
 
             # Row 5: Security
@@ -157,7 +166,11 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                 "definition": {
                     "title": "Latency Distribution",
                     "type": "heatmap",
-                    "requests": [{"q": "avg:detra.node.latency{*} by {node}"}],
+                    "requests": [
+                        {
+                            "q": "avg:detra.node.latency{$env,$node} by {node}",
+                        }
+                    ],
                 },
                 "layout": {"x": 0, "y": 14, "width": 6, "height": 3},
             },
@@ -166,9 +179,18 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                     "title": "Latency Percentiles",
                     "type": "timeseries",
                     "requests": [
-                        {"q": "p50:detra.node.latency{*}", "display_type": "line"},
-                        {"q": "p95:detra.node.latency{*}", "display_type": "line"},
-                        {"q": "p99:detra.node.latency{*}", "display_type": "line"},
+                        {
+                            "q": "p50:detra.node.latency{$env,$node}",
+                            "display_type": "line",
+                        },
+                        {
+                            "q": "p95:detra.node.latency{$env,$node}",
+                            "display_type": "line",
+                        },
+                        {
+                            "q": "p99:detra.node.latency{$env,$node}",
+                            "display_type": "line",
+                        },
                     ],
                 },
                 "layout": {"x": 6, "y": 14, "width": 6, "height": 3},
@@ -213,7 +235,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                 "definition": {
                     "title": "Recent Events",
                     "type": "event_stream",
-                    "query": "sources:detra",
+                    "query": "source:detra",
                     "event_size": "s",
                 },
                 "layout": {"x": 0, "y": 23, "width": 12, "height": 3},
@@ -224,7 +246,7 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                 "definition": {
                     "title": "Monitor Status",
                     "type": "manage_status",
-                    "query": "tag:(source:detra)",
+                    "query": "*",
                     "sort": "status,asc",
                     "display_format": "countsAndList",
                 },
@@ -232,8 +254,16 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
             },
         ],
         "template_variables": [
-            {"name": "node", "prefix": "node", "default": "*"},
-            {"name": "env", "prefix": "env", "default": env},
+            {
+                "name": "node",
+                "prefix": "node",
+                "default": "*",
+            },
+            {
+                "name": "env",
+                "prefix": "env",
+                "default": env,
+            },
         ],
         "layout_type": "free",
         "notify_list": [],
@@ -292,7 +322,7 @@ def get_minimal_dashboard_definition(app_name: str) -> dict[str, Any]:
                     "type": "timeseries",
                     "requests": [{"q": "avg:detra.node.adherence_score{*}", "display_type": "line"}],
                 },
-                "layout": {"x": 0, "y": 2, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 15, "width": 188, "height": 30},
             },
             {
                 "definition": {
@@ -300,7 +330,7 @@ def get_minimal_dashboard_definition(app_name: str) -> dict[str, Any]:
                     "type": "timeseries",
                     "requests": [{"q": "sum:detra.node.calls{*}.as_count()", "display_type": "bars"}],
                 },
-                "layout": {"x": 0, "y": 5, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 45, "width": 188, "height": 30},
             },
         ],
         "layout_type": "free",
