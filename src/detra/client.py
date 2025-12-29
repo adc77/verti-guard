@@ -11,8 +11,7 @@ from detra.actions.cases import CaseManager
 from detra.agents.monitor import AgentMonitor
 from detra.config.loader import get_config, load_config, set_config
 from detra.config.schema import detraConfig
-from detra.dashboard.templates import get_dashboard_definition
-from detra.dashboard.comprehensive_template import get_comprehensive_dashboard
+from detra.dashboard.comprehensive_template import get_dashboard_definition, get_minimal_dashboard
 from detra.decorators.trace import (
     set_evaluation_engine,
     set_datadog_client,
@@ -196,12 +195,12 @@ class detra:
 
         return results
 
-    async def setup_dashboard(self, comprehensive: bool = True) -> Optional[dict]:
+    async def setup_dashboard(self, minimal: bool = False) -> Optional[dict]:
         """
         Create the detra dashboard.
 
         Args:
-            comprehensive: Use comprehensive 32-widget template (default: True).
+            minimal: Use minimal dashboard (fewer widgets). Default is full 42-widget dashboard.
 
         Returns:
             Dashboard info or None if disabled.
@@ -209,8 +208,8 @@ class detra:
         if not self.config.create_dashboard:
             return None
 
-        if comprehensive:
-            dashboard_def = get_comprehensive_dashboard(
+        if minimal:
+            dashboard_def = get_minimal_dashboard(
                 app_name=self.config.app_name,
                 env=self.config.environment.value,
             )

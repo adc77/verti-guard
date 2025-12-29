@@ -1,15 +1,17 @@
 """
-Comprehensive Detra Dashboard Template
+Detra Dashboard Template
 
 Shows ALL observability features:
+- Executive Summary (6 KPIs)
 - LLM Monitoring (adherence, latency, flags)
 - Error Tracking (counts, types, root causes)
 - Agent Workflows (duration, steps, tool calls)
 - Security (PII detection, injection attempts)
-- DSPy Optimization (prompts improved, confidence)
-- Actionable Insights (what to fix, recommendations)
+- DSPy Optimization (prompts, root cause analysis)
+- What to Fix (actionable insights)
+- Alerts & Monitors
 
-Total widgets: 35+
+Total widgets: 42 (+ 8 section headers)
 """
 
 from typing import Any, Dict
@@ -17,7 +19,7 @@ from typing import Any, Dict
 from detra.dashboard.builder import WidgetBuilder
 
 
-def get_comprehensive_dashboard(
+def get_dashboard_definition(
     app_name: str,
     env: str = "production",
 ) -> Dict[str, Any]:
