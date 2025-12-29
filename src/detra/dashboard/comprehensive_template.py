@@ -331,6 +331,20 @@ def get_comprehensive_dashboard(
             [{"q": "sum:detra.optimization.root_causes{$env}.as_count()", "display_type": "bars"}],
         ),
 
+        # Root cause by category
+        WidgetBuilder.toplist(
+            "Root Cause Categories",
+            "sum:detra.optimization.root_causes{$env} by {category}.as_count()",
+            palette="warm",
+        ),
+
+        # Root cause by severity
+        WidgetBuilder.toplist(
+            "Root Cause by Severity",
+            "sum:detra.optimization.root_causes{$env} by {severity}.as_count()",
+            palette="semantic",
+        ),
+
         # Success rate
         WidgetBuilder.query_value(
             "Optimization Success %",
@@ -487,8 +501,8 @@ def get_widget_count() -> Dict[str, int]:
         "error_tracking": 5,
         "agent_workflows": 6,
         "security": 4,
-        "dspy_optimization": 4,
+        "dspy_optimization": 6,  # +2 for root cause category/severity widgets
         "what_to_fix": 5,
         "alerts_monitors": 3,
-        "total": 40,
+        "total": 42,
     }

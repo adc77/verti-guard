@@ -43,3 +43,8 @@ datadog_exports/
 build/
 dist/
 *.egg-info/
+
+
+docs/
+
+datadog_exports/

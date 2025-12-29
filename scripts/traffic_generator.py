@@ -115,6 +115,35 @@ QUERIES = [
     "What governing law applies?",
 ]
 
+# Documents designed to trigger low adherence scores (for DSPy/root cause testing)
+LOW_SCORE_DOCUMENTS = [
+    # Very vague document - will likely cause hallucinations
+    "Contract. Two parties. Something about payment.",
+
+    # Contradictory information
+    """Agreement between Company A and Company B.
+    Payment: $10,000 due January 1st.
+    Payment: $5,000 due February 1st.
+    Note: All previous payment terms are void.""",
+
+    # Missing critical information
+    "Service Agreement. Services will be provided. Parties agree to terms.",
+
+    # Ambiguous dates
+    """Contract dated sometime in 2024.
+    Start: Next month
+    End: When completed
+    Fee: To be determined""",
+]
+
+LOW_SCORE_QUERIES = [
+    # Questions about non-existent details
+    "What is the penalty for early termination?",
+    "List all 5 key deliverables mentioned.",
+    "What insurance requirements are specified?",
+    "Who is the designated arbitrator?",
+]
+
 
 # =============================================================================
 # TRAFFIC GENERATOR
@@ -136,6 +165,7 @@ class TrafficGenerator:
             "injection_attempt": 0,
             "error_trigger": 0,
             "high_latency": 0,
+            "low_score_trigger": 0,
             "success": 0,
             "failed": 0,
         }
@@ -181,19 +211,21 @@ class TrafficGenerator:
     def _select_request_type(self) -> str:
         """Select request type based on distribution."""
         r = random.random()
-        if r < 0.30:
+        if r < 0.25:
             return "normal_llm"
-        elif r < 0.50:
+        elif r < 0.40:
             return "agent_workflow"
-        elif r < 0.60:
+        elif r < 0.50:
             return "with_search"
-        elif r < 0.70:
+        elif r < 0.60:
             return "semantic_violation"
-        elif r < 0.80:
+        elif r < 0.70:
+            return "low_score_trigger"  # NEW: Triggers DSPy/root cause
+        elif r < 0.78:
             return "pii_exposure"
-        elif r < 0.88:
+        elif r < 0.86:
             return "injection_attempt"
-        elif r < 0.95:
+        elif r < 0.94:
             return "error_trigger"
         else:
             return "high_latency"
@@ -208,6 +240,8 @@ class TrafficGenerator:
             await self._with_search(client)
         elif req_type == "semantic_violation":
             await self._semantic_violation(client)
+        elif req_type == "low_score_trigger":
+            await self._low_score_trigger(client)
         elif req_type == "pii_exposure":
             await self._pii_exposure(client)
         elif req_type == "injection_attempt":
@@ -251,6 +285,20 @@ class TrafficGenerator:
         resp = await client.post(
             f"{self.base_url}/analyze",
             json={"document": doc, "query": "What is the total amount and who pays?"},
+        )
+        resp.raise_for_status()
+
+    async def _low_score_trigger(self, client: httpx.AsyncClient):
+        """Request designed to trigger low adherence scores.
+
+        This tests DSPy optimization (score < 0.7) and root cause analysis (score < 0.8).
+        Uses vague/contradictory documents with questions about non-existent details.
+        """
+        doc = random.choice(LOW_SCORE_DOCUMENTS)
+        query = random.choice(LOW_SCORE_QUERIES)
+        resp = await client.post(
+            f"{self.base_url}/analyze",
+            json={"document": doc, "query": query, "search_context": False},
         )
         resp.raise_for_status()
 
@@ -302,12 +350,16 @@ class TrafficGenerator:
         print(f"  Agent Workflow: {self.stats['agent_workflow']}")
         print(f"  With Search: {self.stats['with_search']}")
         print(f"  Semantic Violation: {self.stats['semantic_violation']}")
+        print(f"  Low Score Trigger: {self.stats['low_score_trigger']} (triggers DSPy/root cause)")
         print(f"  PII Exposure: {self.stats['pii_exposure']}")
         print(f"  Injection Attempt: {self.stats['injection_attempt']}")
         print(f"  Error Trigger: {self.stats['error_trigger']}")
         print(f"  High Latency: {self.stats['high_latency']}")
         print()
-        print("Check Datadog dashboard for live metrics!")
+        print("Check Datadog dashboard for:")
+        print("  - detra.optimization.prompts_optimized (DSPy)")
+        print("  - detra.optimization.root_causes (Root Cause Analysis)")
+        print("  - detra.optimization.confidence (Optimization confidence)")
 
 
 # =============================================================================

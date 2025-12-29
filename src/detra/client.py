@@ -7,6 +7,7 @@ import structlog
 
 from detra.actions.incidents import IncidentManager
 from detra.actions.notifications import NotificationManager
+from detra.actions.cases import CaseManager
 from detra.agents.monitor import AgentMonitor
 from detra.config.loader import get_config, load_config, set_config
 from detra.config.schema import detraConfig
@@ -27,6 +28,8 @@ from detra.evaluation.engine import EvaluationEngine
 from detra.evaluation.gemini_judge import EvaluationResult, GeminiJudge
 from detra.telemetry.datadog_client import DatadogClient
 from detra.telemetry.llmobs_bridge import LLMObsBridge
+from detra.optimization.root_cause import RootCauseAnalyzer
+from detra.optimization.dspy_optimizer import DSpyOptimizer
 
 logger = structlog.get_logger()
 
@@ -62,14 +65,10 @@ class detra:
         self.datadog_client = DatadogClient(config.datadog)
         self.llmobs = LLMObsBridge(config)
         self.gemini_judge = GeminiJudge(config.gemini)
-        self.evaluation_engine = EvaluationEngine(
-            self.gemini_judge, config.security
-        )
+        self.evaluation_engine = EvaluationEngine(self.gemini_judge, config.security)
         self.monitor_manager = MonitorManager(self.datadog_client, config)
         self.notification_manager = NotificationManager(config.integrations)
-        self.incident_manager = IncidentManager(
-            self.datadog_client, self.notification_manager
-        )
+        self.incident_manager = IncidentManager(self.datadog_client, self.notification_manager)
 
         # NEW: Error tracking (Sentry-style)
         self.error_tracker = ErrorTracker(
@@ -81,9 +80,41 @@ class detra:
         # NEW: Agent behavior monitoring
         self.agent_monitor = AgentMonitor(self.datadog_client)
 
+        # NEW: Root cause analysis for errors
+        if config.gemini and config.gemini.api_key:
+            self.root_cause_analyzer = RootCauseAnalyzer(
+                api_key=config.gemini.api_key,
+                model=config.gemini.model or "gemini-2.5-flash",
+            )
+        else:
+            self.root_cause_analyzer = None
+
+        # NEW: DSPy prompt optimization
+        if config.gemini and config.gemini.api_key:
+            self.dspy_optimizer = DSpyOptimizer(
+                model_name=config.gemini.model or "gemini-2.5-flash",
+                api_key=config.gemini.api_key,
+            )
+        else:
+            self.dspy_optimizer = None
+
+        # NEW: Case management for tracking issues
+        self.case_manager = CaseManager(max_cases=100)
+
         # Wire up decorators
         set_evaluation_engine(self.evaluation_engine)
         set_datadog_client(self.datadog_client)
+
+        # Wire up optimization components
+        from detra.decorators.trace import (
+            set_root_cause_analyzer,
+            set_dspy_optimizer,
+            set_case_manager,
+        )
+
+        set_root_cause_analyzer(self.root_cause_analyzer)
+        set_dspy_optimizer(self.dspy_optimizer)
+        set_case_manager(self.case_manager)
 
         # Enable LLM Observability
         self.llmobs.enable()
@@ -189,8 +220,26 @@ class detra:
                 env=self.config.environment.value,
             )
 
-        if self.config.dashboard_name:
-            dashboard_def["title"] = self.config.dashboard_name
+        dashboard_title = self.config.dashboard_name or dashboard_def.get("title", "")
+        dashboard_def["title"] = dashboard_title
+
+        # Check if dashboard already exists
+        existing_dashboards = await self.datadog_client.list_dashboards(
+            title_filter=dashboard_title
+        )
+        for existing in existing_dashboards:
+            if existing["title"] == dashboard_title:
+                logger.info(
+                    "Dashboard already exists, skipping creation",
+                    title=dashboard_title,
+                    id=existing.get("id"),
+                    url=existing.get("url"),
+                )
+                return {
+                    "id": existing.get("id"),
+                    "title": existing["title"],
+                    "url": existing.get("url"),
+                }
 
         result = await self.datadog_client.create_dashboard(dashboard_def)
 
@@ -264,9 +313,7 @@ class detra:
         """Flush all pending telemetry."""
         self.llmobs.flush()
 
-    async def submit_service_check(
-        self, status: int = 0, message: str = ""
-    ) -> bool:
+    async def submit_service_check(self, status: int = 0, message: str = "") -> bool:
         """
         Submit a service check (health check).
 
@@ -288,6 +335,159 @@ class detra:
         self.flush()
         await self.datadog_client.close()
         await self.notification_manager.close()
+
+    # =========================================================================
+    # ROOT CAUSE ANALYSIS
+    # =========================================================================
+
+    async def analyze_error_root_cause(
+        self,
+        error: Exception,
+        context: Optional[dict] = None,
+        input_data: Any = None,
+        output_data: Any = None,
+    ) -> Optional[dict]:
+        """
+        Analyze an error and provide root cause analysis.
+
+        Args:
+            error: The exception that occurred.
+            context: Additional context about error.
+            input_data: Input that caused error.
+            output_data: Output (if any) before error.
+
+        Returns:
+            Root cause analysis dict with suggested fixes and files to check.
+        """
+        if not self.root_cause_analyzer:
+            return {"error": "Root cause analyzer not configured"}
+
+        try:
+            return await self.root_cause_analyzer.analyze_error(
+                error=error,
+                context=context or {},
+                node_name=None,
+                input_data=input_data,
+                output_data=output_data,
+            )
+        except Exception as e:
+            logger.error("Root cause analysis failed", error=str(e))
+            return {"error": str(e)}
+
+    # =========================================================================
+    # PROMPT OPTIMIZATION
+    # =========================================================================
+
+    async def optimize_prompt(
+        self,
+        node_name: str,
+        original_prompt: str,
+        failure_reason: str,
+        failed_examples: list = None,
+    ) -> Optional[dict]:
+        """
+        Optimize a failing prompt using DSPy.
+
+        Args:
+            node_name: Name of node.
+            original_prompt: Original failing prompt.
+            failure_reason: Why the prompt is failing.
+            failed_examples: Examples of failures.
+
+        Returns:
+            Optimization result with improved prompt and changes made.
+        """
+        if not self.dspy_optimizer:
+            return {"error": "DSPy optimizer not configured"}
+
+        try:
+            node_config = self.config.nodes.get(node_name)
+            return await self.dspy_optimizer.optimize_prompt(
+                original_prompt=original_prompt,
+                failure_reason=failure_reason,
+                expected_behaviors=node_config.expected_behaviors if node_config else [],
+                unexpected_behaviors=node_config.unexpected_behaviors if node_config else [],
+                failed_examples=failed_examples or [],
+                max_iterations=3,
+            )
+        except Exception as e:
+            logger.error("Prompt optimization failed", error=str(e))
+            return {"error": str(e)}
+
+    # =========================================================================
+    # CASE MANAGEMENT
+    # =========================================================================
+
+    def create_case(
+        self,
+        title: str,
+        description: str,
+        priority: str = "medium",
+        category: Optional[str] = None,
+        tags: Optional[list] = None,
+    ) -> dict:
+        """
+        Create a new case for tracking.
+
+        Args:
+            title: Case title.
+            description: Case description.
+            priority: Priority level (critical, high, medium, low).
+            category: Issue category.
+            tags: Additional tags.
+
+        Returns:
+            Created case dict.
+        """
+        from detra.actions.cases import CasePriority
+
+        priority_map = {
+            "critical": CasePriority.CRITICAL,
+            "high": CasePriority.HIGH,
+            "medium": CasePriority.MEDIUM,
+            "low": CasePriority.LOW,
+        }
+
+        case = self.case_manager.create_case(
+            title=title,
+            description=description,
+            priority=priority_map.get(priority, CasePriority.MEDIUM),
+            category=category,
+            tags=tags,
+        )
+
+        return case.to_dict()
+
+    def get_cases(self, status=None, priority=None, limit=50):
+        """Get list of cases with optional filtering."""
+        from detra.actions.cases import CaseStatus
+
+        status_map = {
+            "open": CaseStatus.OPEN,
+            "in_progress": CaseStatus.IN_PROGRESS,
+            "resolved": CaseStatus.RESOLVED,
+            "closed": CaseStatus.CLOSED,
+        }
+
+        from detra.actions.cases import CasePriority
+        priority_map = {
+            "critical": CasePriority.CRITICAL,
+            "high": CasePriority.HIGH,
+            "medium": CasePriority.MEDIUM,
+            "low": CasePriority.LOW,
+        }
+
+        cases = self.case_manager.list_cases(
+            status=status_map.get(status) if status else None,
+            priority=priority_map.get(priority) if priority else None,
+            limit=limit,
+        )
+
+        return [c.to_dict() for c in cases]
+
+    def flush(self) -> None:
+        """Flush any pending telemetry data."""
+        pass
 
 
 # =========================================================================
@@ -343,3 +543,152 @@ def get_client() -> detra:
 def is_initialized() -> bool:
     """Check if detra has been initialized."""
     return _client is not None
+
+    # =========================================================================
+    # ROOT CAUSE ANALYSIS
+    # =========================================================================
+
+    async def analyze_error_root_cause(
+        self,
+        error: Exception,
+        context: Optional[dict] = None,
+        input_data: Any = None,
+        output_data: Any = None,
+    ) -> Optional[dict]:
+        """
+        Analyze an error and provide root cause analysis.
+
+        Args:
+            error: The exception that occurred.
+            context: Additional context about error.
+            input_data: Input that caused error.
+            output_data: Output (if any) before error.
+
+        Returns:
+            Root cause analysis dict with suggested fixes and files to check.
+        """
+        if not self.root_cause_analyzer:
+            return {"error": "Root cause analyzer not configured"}
+
+        try:
+            return await self.root_cause_analyzer.analyze_error(
+                error=error,
+                context=context or {},
+                node_name=None,
+                input_data=input_data,
+                output_data=output_data,
+            )
+        except Exception as e:
+            logger.error("Root cause analysis failed", error=str(e))
+            return {"error": str(e)}
+
+    # =========================================================================
+    # PROMPT OPTIMIZATION
+    # =========================================================================
+
+    async def optimize_prompt(
+        self,
+        node_name: str,
+        original_prompt: str,
+        failure_reason: str,
+        failed_examples: list = None,
+    ) -> Optional[dict]:
+        """
+        Optimize a failing prompt using DSPy.
+
+        Args:
+            node_name: Name of node.
+            original_prompt: Original failing prompt.
+            failure_reason: Why the prompt is failing.
+            failed_examples: Examples of failures.
+
+        Returns:
+            Optimization result with improved prompt and changes made.
+        """
+        if not self.dspy_optimizer:
+            return {"error": "DSPy optimizer not configured"}
+
+        try:
+            node_config = self.config.nodes.get(node_name)
+            return await self.dspy_optimizer.optimize_prompt(
+                original_prompt=original_prompt,
+                failure_reason=failure_reason,
+                expected_behaviors=node_config.expected_behaviors if node_config else [],
+                unexpected_behaviors=node_config.unexpected_behaviors if node_config else [],
+                failed_examples=failed_examples or [],
+                max_iterations=3,
+            )
+        except Exception as e:
+            logger.error("Prompt optimization failed", error=str(e))
+            return {"error": str(e)}
+
+    # =========================================================================
+    # CASE MANAGEMENT
+    # =========================================================================
+
+    def create_case(
+        self,
+        title: str,
+        description: str,
+        priority: str = "medium",
+        category: Optional[str] = None,
+        tags: Optional[list] = None,
+    ) -> dict:
+        """
+        Create a new case for tracking.
+
+        Args:
+            title: Case title.
+            description: Case description.
+            priority: Priority level (critical, high, medium, low).
+            category: Issue category.
+            tags: Additional tags.
+
+        Returns:
+            Created case dict.
+        """
+        from detra.actions.cases import CasePriority
+
+        priority_map = {
+            "critical": CasePriority.CRITICAL,
+            "high": CasePriority.HIGH,
+            "medium": CasePriority.MEDIUM,
+            "low": CasePriority.LOW,
+        }
+
+        case = self.case_manager.create_case(
+            title=title,
+            description=description,
+            priority=priority_map.get(priority, CasePriority.MEDIUM),
+            category=category,
+            tags=tags or [],
+        )
+
+        return case.to_dict()
+
+    def get_cases(self, status=None, priority=None, limit=50):
+        """Get list of cases with optional filtering."""
+        from detra.actions.cases import CaseStatus
+
+        status_map = {
+            "open": CaseStatus.OPEN,
+            "in_progress": CaseStatus.IN_PROGRESS,
+            "resolved": CaseStatus.RESOLVED,
+            "closed": CaseStatus.CLOSED,
+        }
+
+        from detra.actions.cases import CasePriority
+        priority_map = {
+            "critical": CasePriority.CRITICAL,
+            "high": CasePriority.HIGH,
+            "medium": CasePriority.MEDIUM,
+            "low": CasePriority.LOW,
+        }
+
+        cases = self.case_manager.list_cases(
+            status=status_map.get(status) if status else None,
+            priority=priority_map.get(priority) if priority else None,
+            limit=limit,
+        )
+
+        return [c.to_dict() for c in cases]

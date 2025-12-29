@@ -10,6 +10,7 @@ Exports all detra-related Datadog configurations to JSON files:
 Run: python scripts/export_datadog_configs.py
 """
 
+import argparse
 import asyncio
 import json
 import os
@@ -25,47 +26,61 @@ from datadog_api_client.v1.api.dashboards_api import DashboardsApi
 from datadog_api_client.v1.api.monitors_api import MonitorsApi
 from datadog_api_client.v1.api.service_level_objectives_api import ServiceLevelObjectivesApi
 
-from dotenv import load_dotenv
 
-load_dotenv()
+def load_env_vars():
+    """Load environment variables manually."""
+    env = {}
+    if os.path.exists(".env"):
+        with open(".env") as f:
+            for line in f:
+                line = line.strip()
+                if "=" in line and not line.startswith("#"):
+                    key, value = line.split("=", 1)
+                    env[key.strip()] = value.strip()
+    return env
+
+
+env = load_env_vars()
+DD_API_KEY = env.get("DD_API_KEY", os.getenv("DD_API_KEY"))
+DD_APP_KEY = env.get("DD_APP_KEY", os.getenv("DD_APP_KEY"))
+DD_SITE = env.get("DD_SITE", os.getenv("DD_SITE", "datadoghq.com"))
+
+if not DD_API_KEY or not DD_APP_KEY:
+    print("ERROR: DD_API_KEY and DD_APP_KEY must be set")
+    print("\nSet them in .env file:")
+    print("  DD_API_KEY=your_api_key")
+    print("  DD_APP_KEY=your_app_key")
+    print("  DD_SITE=datadoghq.com  # or us5.datadoghq.com, etc.")
+    sys.exit(1)
+
+configuration = Configuration()
+configuration.api_key["apiKeyAuth"] = DD_API_KEY
+configuration.api_key["appKeyAuth"] = DD_APP_KEY
+configuration.server_variables["site"] = DD_SITE
 
 
 class DatadogExporter:
     """Export Datadog configurations for detra."""
 
     def __init__(self, output_dir: str = "datadog_exports"):
-        """
-        Initialize exporter.
-
-        Args:
-            output_dir: Directory to save exported configs.
-        """
-        # Setup Datadog API client
         self.configuration = Configuration()
-        api_key = os.getenv("DD_API_KEY")
-        app_key = os.getenv("DD_APP_KEY")
-        site = os.getenv("DD_SITE", "datadoghq.com")
-
-        if not api_key or not app_key:
-            raise ValueError("DD_API_KEY and DD_APP_KEY must be set")
-
-        self.configuration.api_key["apiKeyAuth"] = api_key
-        self.configuration.api_key["appKeyAuth"] = app_key
-        self.configuration.server_variables["site"] = site
+        self.configuration.api_key["apiKeyAuth"] = DD_API_KEY
+        self.configuration.api_key["appKeyAuth"] = DD_APP_KEY
+        self.configuration.server_variables["site"] = DD_SITE
 
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
 
         self.exported_files = []
 
-        print(f"✓ Datadog API configured (site: {site})")
+        print(f"✓ Datadog API configured (site: {DD_SITE})")
         print(f"✓ Output directory: {self.output_dir}")
 
     def export_all(self):
         """Export all configurations."""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("DATADOG CONFIGURATION EXPORT")
-        print("="*60 + "\n")
+        print("=" * 60 + "\n")
 
         # Export monitors
         monitors = self.export_monitors()
@@ -79,14 +94,14 @@ class DatadogExporter:
         # Create summary
         self.create_summary(monitors, dashboards, slos)
 
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("EXPORT COMPLETE")
-        print("="*60)
+        print("=" * 60)
         print(f"\nExported {len(self.exported_files)} files to: {self.output_dir}")
         print("\nFiles:")
         for file in self.exported_files:
             print(f"  - {file}")
-        print("\n" + "="*60 + "\n")
+        print("\n" + "=" * 60 + "\n")
 
     def export_monitors(self) -> list:
         """Export all detra monitors."""
@@ -96,28 +111,30 @@ class DatadogExporter:
             with ApiClient(self.configuration) as api_client:
                 api = MonitorsApi(api_client)
 
-                # Get all monitors
-                monitors = api.list_monitors(
-                    tags="source:detra",
-                    name="detra",
-                )
+                # Get all monitors - without filters to find all
+                monitors = api.list_monitors()
+
+                # Filter for detra monitors
+                detra_monitors = [m for m in monitors if "detra" in m.name.lower()]
 
                 # Convert to serializable format
                 monitors_data = []
-                for monitor in monitors:
-                    monitor_dict = monitor.to_dict()
-                    monitors_data.append(monitor_dict)
+                for monitor in detra_monitors:
+                    monitors_data.append(monitor.to_dict())
 
                 # Save to file
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"monitors_{timestamp}.json"
-                filepath = self.output_dir / filename
+                if monitors_data:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"monitors_{timestamp}.json"
+                    filepath = self.output_dir / filename
 
-                with open(filepath, 'w') as f:
-                    json.dump(monitors_data, f, indent=2, default=str)
+                    with open(filepath, "w") as f:
+                        json.dump(monitors_data, f, indent=2, default=str)
 
-                self.exported_files.append(filename)
-                print(f"  ✓ Exported {len(monitors_data)} monitors to {filename}")
+                    self.exported_files.append(filename)
+                    print(f"  ✓ Exported {len(monitors_data)} monitors to {filename}")
+                else:
+                    print(f"  ℹ️  No detra monitors found")
 
                 return monitors_data
 
@@ -138,28 +155,30 @@ class DatadogExporter:
 
                 # Filter detra dashboards
                 detra_dashboards = [
-                    d for d in dashboard_list.dashboards
-                    if "detra" in d.title or "LLM Observability" in d.title
+                    d
+                    for d in dashboard_list.dashboards
+                    if "detra" in d.title.lower() or "llm" in d.title.lower()
                 ]
 
                 dashboards_data = []
-
-                for dashboard_summary in detra_dashboards:
+                for dashboard in detra_dashboards:
                     # Get full dashboard details
-                    dashboard = api.get_dashboard(dashboard_summary.id)
-                    dashboard_dict = dashboard.to_dict()
-                    dashboards_data.append(dashboard_dict)
+                    dashboard_detail = api.get_dashboard(dashboard.id)
+                    dashboards_data.append(dashboard_detail.to_dict())
 
                 # Save to file
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                filename = f"dashboards_{timestamp}.json"
-                filepath = self.output_dir / filename
+                if dashboards_data:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"dashboards_{timestamp}.json"
+                    filepath = self.output_dir / filename
 
-                with open(filepath, 'w') as f:
-                    json.dump(dashboards_data, f, indent=2, default=str)
+                    with open(filepath, "w") as f:
+                        json.dump(dashboards_data, f, indent=2, default=str)
 
-                self.exported_files.append(filename)
-                print(f"  ✓ Exported {len(dashboards_data)} dashboards to {filename}")
+                    self.exported_files.append(filename)
+                    print(f"  ✓ Exported {len(dashboards_data)} dashboards to {filename}")
+                else:
+                    print(f"  ℹ️  No detra dashboards found")
 
                 return dashboards_data
 
@@ -175,28 +194,32 @@ class DatadogExporter:
             with ApiClient(self.configuration) as api_client:
                 api = ServiceLevelObjectivesApi(api_client)
 
-                # Get all SLOs
-                slos_response = api.list_slos(tags="source:detra")
+                # List all SLOs
+                slos_response = api.list_slos()
 
                 slos_data = []
-                if hasattr(slos_response, 'data') and slos_response.data:
-                    for slo in slos_response.data:
-                        slo_dict = slo.to_dict()
-                        slos_data.append(slo_dict)
+                if hasattr(slos_response, "data") and slos_response.data:
+                    slos_list = slos_response.data
 
+                    # Filter for detra SLOs
+                    detra_slos = [s for s in slos_list if slo.name and "detra" in slo.name.lower()]
+
+                    for slo in detra_slos:
+                        slos_data.append(slo.to_dict())
+
+                # Save to file
                 if slos_data:
-                    # Save to file
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                     filename = f"slos_{timestamp}.json"
                     filepath = self.output_dir / filename
 
-                    with open(filepath, 'w') as f:
+                    with open(filepath, "w") as f:
                         json.dump(slos_data, f, indent=2, default=str)
 
                     self.exported_files.append(filename)
                     print(f"  ✓ Exported {len(slos_data)} SLOs to {filename}")
                 else:
-                    print(f"  ℹ️  No SLOs found with tag 'source:detra'")
+                    print(f"  ℹ️  No detra SLOs found")
 
                 return slos_data
 
@@ -208,7 +231,7 @@ class DatadogExporter:
         """Create a summary file."""
         summary = {
             "export_date": datetime.now().isoformat(),
-            "datadog_site": self.configuration.server_variables["site"],
+            "datadog_site": DD_SITE,
             "summary": {
                 "monitors": len(monitors),
                 "dashboards": len(dashboards),
@@ -220,6 +243,7 @@ class DatadogExporter:
                     "name": m.get("name"),
                     "type": m.get("type"),
                     "tags": m.get("tags", []),
+                    "query": m.get("query"),
                 }
                 for m in monitors
             ],
@@ -231,119 +255,21 @@ class DatadogExporter:
                 }
                 for d in dashboards
             ],
-            "slos": [
-                {
-                    "id": s.get("id"),
-                    "name": s.get("name"),
-                    "target_threshold": s.get("target_threshold"),
-                }
-                for s in slos
-            ],
+            "slos": slos,
         }
 
         filename = "export_summary.json"
         filepath = self.output_dir / filename
 
-        with open(filepath, 'w') as f:
+        with open(filepath, "w") as f:
             json.dump(summary, f, indent=2)
 
         self.exported_files.append(filename)
         print(f"  ✓ Created summary file: {filename}")
 
-        # Also create a README
-        readme_content = f"""# detra Datadog Configuration Export
-
-Export Date: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
-
-## Contents
-
-This directory contains exported Datadog configurations for detra:
-
-- **Monitors**: {len(monitors)} monitor(s)
-- **Dashboards**: {len(dashboards)} dashboard(s)
-- **SLOs**: {len(slos)} SLO(s)
-
-## Files
-
-{chr(10).join(f"- `{f}`" for f in self.exported_files)}
-
-## Importing Configurations
-
-To import these configurations into another Datadog org:
-
-### Monitors
-```python
-from datadog_api_client.v1.api.monitors_api import MonitorsApi
-import json
-
-with open('monitors_*.json') as f:
-    monitors = json.load(f)
-
-for monitor in monitors:
-    # Remove id and other auto-generated fields
-    monitor.pop('id', None)
-    monitor.pop('created', None)
-    monitor.pop('modified', None)
-    monitor.pop('creator', None)
-
-    api.create_monitor(body=monitor)
-```
-
-### Dashboards
-```python
-from datadog_api_client.v1.api.dashboards_api import DashboardsApi
-import json
-
-with open('dashboards_*.json') as f:
-    dashboards = json.load(f)
-
-for dashboard in dashboards:
-    dashboard.pop('id', None)
-    dashboard.pop('created_at', None)
-    dashboard.pop('modified_at', None)
-    dashboard.pop('author_handle', None)
-
-    api.create_dashboard(body=dashboard)
-```
-
-## detra Organization
-
-Datadog Organization: `{os.getenv('DD_SITE', 'datadoghq.com')}`
-
-## Detection Rules Summary
-
-### Monitor 1: Adherence Score Warning
-- **Type**: Metric Alert
-- **Query**: `avg(last_5m):avg:detra.node.adherence_score{{*}} < 0.85`
-- **Action**: Alert when LLM outputs fall below quality threshold
-
-### Monitor 2: PII Detection
-- **Type**: Event Alert
-- **Query**: `sum(last_1m):sum:detra.security.pii_detected{{*}} > 0`
-- **Action**: Critical alert on PII exposure in LLM outputs
-
-### Monitor 3: High Latency
-- **Type**: Metric Alert
-- **Query**: `avg(last_5m):avg:detra.node.latency_ms{{*}} > 5000`
-- **Action**: Warn when LLM response times exceed threshold
-
-For full details, see the JSON configuration files.
-"""
-
-        readme_path = self.output_dir / "README.md"
-        with open(readme_path, 'w') as f:
-            f.write(readme_content)
-
-        print(f"  ✓ Created README.md")
-
 
 def main():
-    """Main entry point."""
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description="Export Datadog configurations for detra"
-    )
+    parser = argparse.ArgumentParser(description="Export Datadog configurations for detra")
     parser.add_argument(
         "--output-dir",
         default="datadog_exports",
@@ -352,27 +278,13 @@ def main():
 
     args = parser.parse_args()
 
-    # Check environment variables
-    if not os.getenv("DD_API_KEY") or not os.getenv("DD_APP_KEY"):
-        print("ERROR: DD_API_KEY and DD_APP_KEY must be set")
-        print("\nSet them with:")
-        print("  export DD_API_KEY=your_api_key")
-        print("  export DD_APP_KEY=your_app_key")
-        sys.exit(1)
-
     try:
         exporter = DatadogExporter(output_dir=args.output_dir)
         exporter.export_all()
-
-        print("✅ Export completed successfully!")
-        print(f"\nAdd these files to your GitHub repository:")
-        print(f"  git add {args.output_dir}/")
-        print(f"  git commit -m 'Add Datadog configuration exports'")
-        print(f"  git push")
-
     except Exception as e:
         print(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
