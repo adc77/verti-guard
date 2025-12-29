@@ -15,97 +15,105 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
         Complete dashboard JSON definition.
     """
     return {
-        "title": f"detra: {app_name} LLM Observability",
+        "title": f"{app_name} - LLM Observability",
         "description": "End-to-end LLM observability dashboard with health metrics, security signals, and actionable insights",
         "widgets": [
-            # Row 1: Health Overview - 4 query value widgets
             {
                 "definition": {
                     "title": "Overall Adherence Score",
                     "type": "query_value",
                     "requests": [
                         {
-                            "q": "avg:detra.node.adherence_score{*}",
+                            "q": "avg:detra.node.adherence_score{$env,$node}",
                         }
                     ],
                     "precision": 2,
                 },
-                "layout": {"x": 0, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 0, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
-                    "title": "Flag Rate (5m)",
+                    "title": "Flag Rate",
                     "type": "query_value",
                     "requests": [
                         {
-                            "q": "sum:detra.node.flagged{*}.as_count() / sum:detra.node.calls{*}.as_count() * 100",
+                            "q": "sum:detra.node.flagged{$env,$node}.as_count() / sum:detra.node.calls{$env,$node}.as_count() * 100",
                         }
                     ],
                     "precision": 1,
                     "custom_unit": "%",
                 },
-                "layout": {"x": 3, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 47, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
-                    "title": "Error Rate (5m)",
+                    "title": "Error Rate",
                     "type": "query_value",
                     "requests": [
                         {
-                            "q": "sum:detra.node.calls{status:error}.as_count() / sum:detra.node.calls{*}.as_count() * 100",
+                            "q": "sum:detra.node.calls{status:error,$env,$node}.as_count() / sum:detra.node.calls{$env,$node}.as_count() * 100",
                         }
                     ],
                     "precision": 1,
                     "custom_unit": "%",
                 },
-                "layout": {"x": 6, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 94, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
-                    "title": "Avg Latency",
+                    "title": "Average Latency",
                     "type": "query_value",
                     "requests": [
                         {
-                            "q": "avg:detra.node.latency{*}",
+                            "q": "avg:detra.node.latency{$env,$node}",
                         }
                     ],
                     "precision": 0,
                     "custom_unit": "ms",
                 },
-                "layout": {"x": 9, "y": 0, "width": 3, "height": 2},
+                "layout": {"x": 141, "y": 0, "width": 47, "height": 15},
             },
-            # Row 2: Adherence Trends - full width
             {
                 "definition": {
                     "title": "Adherence Score Over Time",
                     "type": "timeseries",
                     "requests": [
                         {
-                            "q": "avg:detra.node.adherence_score{*} by {node}",
+                            "q": "avg:detra.node.adherence_score{$env,$node} by {node}",
                             "display_type": "line",
                         }
                     ],
+                    "yaxis": {
+                        "min": "0",
+                        "max": "1",
+                    },
                     "markers": [
-                        {"value": "y = 0.85", "display_type": "warning dashed"},
-                        {"value": "y = 0.70", "display_type": "error dashed"},
+                        {
+                            "value": "y = 0.85",
+                            "display_type": "warning dashed",
+                        },
+                        {
+                            "value": "y = 0.70",
+                            "display_type": "error dashed",
+                        },
                     ],
-                    "yaxis": {"min": "0", "max": "1"},
                 },
-                "layout": {"x": 0, "y": 2, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 15, "width": 188, "height": 30},
             },
-            # Row 3: Flag Analysis - 2 widgets side by side
             {
                 "definition": {
                     "title": "Flags by Category",
                     "type": "toplist",
                     "requests": [
                         {
-                            "q": "sum:detra.node.flagged{*} by {category}.as_count()",
-                            "style": {"palette": "warm"},
+                            "q": "sum:detra.node.flagged{$env,$node} by {category}.as_count()",
+                            "style": {
+                                "palette": "warm",
+                            },
                         }
                     ],
                 },
-                "layout": {"x": 0, "y": 5, "width": 6, "height": 3},
+                "layout": {"x": 0, "y": 45, "width": 94, "height": 30},
             },
             {
                 "definition": {
@@ -113,26 +121,29 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                     "type": "toplist",
                     "requests": [
                         {
-                            "q": "sum:detra.node.flagged{*} by {node}.as_count()",
-                            "style": {"palette": "orange"},
+                            "q": "sum:detra.node.flagged{$env,$node} by {node}.as_count()",
+                            "style": {
+                                "palette": "orange",
+                            },
                         }
                     ],
                 },
-                "layout": {"x": 6, "y": 5, "width": 6, "height": 3},
+                "layout": {"x": 94, "y": 45, "width": 94, "height": 30},
             },
-            # Row 4: Security Signals - 2 widgets side by side
             {
                 "definition": {
                     "title": "Security Issues by Type",
                     "type": "toplist",
                     "requests": [
                         {
-                            "q": "sum:detra.security.issues{*} by {check}.as_count()",
-                            "style": {"palette": "red"},
+                            "q": "sum:detra.security.issues{$env,$node} by {check}.as_count()",
+                            "style": {
+                                "palette": "red",
+                            },
                         }
                     ],
                 },
-                "layout": {"x": 0, "y": 8, "width": 6, "height": 3},
+                "layout": {"x": 0, "y": 75, "width": 94, "height": 30},
             },
             {
                 "definition": {
@@ -140,87 +151,103 @@ def get_dashboard_definition(app_name: str, env: str = "production") -> dict[str
                     "type": "timeseries",
                     "requests": [
                         {
-                            "q": "sum:detra.security.issues{*} by {severity}.as_count()",
+                            "q": "sum:detra.security.issues{$env,$node} by {severity}.as_count()",
                             "display_type": "bars",
                         }
                     ],
                 },
-                "layout": {"x": 6, "y": 8, "width": 6, "height": 3},
+                "layout": {"x": 94, "y": 75, "width": 94, "height": 30},
             },
-            # Row 5: Performance - 2 widgets side by side
             {
                 "definition": {
                     "title": "Latency Distribution",
                     "type": "heatmap",
-                    "requests": [{"q": "avg:detra.node.latency{*} by {node}"}],
+                    "requests": [
+                        {
+                            "q": "avg:detra.node.latency{$env,$node} by {node}",
+                        }
+                    ],
                 },
-                "layout": {"x": 0, "y": 11, "width": 6, "height": 3},
+                "layout": {"x": 0, "y": 105, "width": 94, "height": 30},
             },
             {
                 "definition": {
                     "title": "Latency Percentiles",
                     "type": "timeseries",
                     "requests": [
-                        {"q": "p50:detra.node.latency{*}", "display_type": "line"},
-                        {"q": "p95:detra.node.latency{*}", "display_type": "line"},
-                        {"q": "p99:detra.node.latency{*}", "display_type": "line"},
+                        {
+                            "q": "p50:detra.node.latency{$env,$node}",
+                            "display_type": "line",
+                        },
+                        {
+                            "q": "p95:detra.node.latency{$env,$node}",
+                            "display_type": "line",
+                        },
+                        {
+                            "q": "p99:detra.node.latency{$env,$node}",
+                            "display_type": "line",
+                        },
                     ],
                 },
-                "layout": {"x": 6, "y": 11, "width": 6, "height": 3},
+                "layout": {"x": 94, "y": 105, "width": 94, "height": 30},
             },
-            # Row 6: Token Usage - full width
             {
                 "definition": {
                     "title": "Evaluation Token Usage",
                     "type": "timeseries",
                     "requests": [
                         {
-                            "q": "sum:detra.evaluation.tokens{*}.as_count()",
+                            "q": "sum:detra.evaluation.tokens{$env,$node}.as_count()",
                             "display_type": "bars",
                         }
                     ],
                 },
-                "layout": {"x": 0, "y": 14, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 135, "width": 188, "height": 30},
             },
-            # Row 7: Call Volume - full width
             {
                 "definition": {
                     "title": "Call Volume by Node",
                     "type": "timeseries",
                     "requests": [
                         {
-                            "q": "sum:detra.node.calls{*} by {node}.as_count()",
+                            "q": "sum:detra.node.calls{$env,$node} by {node}.as_count()",
                             "display_type": "bars",
                         }
                     ],
                 },
-                "layout": {"x": 0, "y": 17, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 165, "width": 188, "height": 30},
             },
-            # Row 8: Events Stream - full width
             {
                 "definition": {
                     "title": "Recent Events",
                     "type": "event_stream",
-                    "query": "sources:detra",
+                    "query": "source:detra",
                     "event_size": "s",
                 },
-                "layout": {"x": 0, "y": 20, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 195, "width": 188, "height": 30},
             },
-            # Row 9: Monitor Summary - full width
             {
                 "definition": {
                     "title": "Monitor Status",
                     "type": "manage_status",
-                    "query": "tag:(source:detra)",
+                    "query": "*",
                     "sort": "status,asc",
                     "display_format": "countsAndList",
                 },
-                "layout": {"x": 0, "y": 23, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 225, "width": 188, "height": 30},
             },
         ],
         "template_variables": [
-            {"name": "node", "prefix": "node", "default": "*"},
-            {"name": "env", "prefix": "env", "default": env},
+            {
+                "name": "node",
+                "prefix": "node",
+                "default": "*",
+            },
+            {
+                "name": "env",
+                "prefix": "env",
+                "default": env,
+            },
         ],
         "layout_type": "free",
         "notify_list": [],
@@ -238,7 +265,7 @@ def get_minimal_dashboard_definition(app_name: str) -> dict[str, Any]:
         Minimal dashboard JSON definition.
     """
     return {
-        "title": f"detra: {app_name} (Minimal)",
+        "title": f"{app_name} - LLM Observability (Minimal)",
         "description": "Essential LLM observability metrics",
         "widgets": [
             {
@@ -252,7 +279,7 @@ def get_minimal_dashboard_definition(app_name: str) -> dict[str, Any]:
                     ],
                     "precision": 2,
                 },
-                "layout": {"x": 0, "y": 0, "width": 4, "height": 2},
+                "layout": {"x": 0, "y": 0, "width": 47, "height": 15},
             },
             {
                 "definition": {
@@ -264,8 +291,12 @@ def get_minimal_dashboard_definition(app_name: str) -> dict[str, Any]:
                             "display_type": "line",
                         }
                     ],
+                    "yaxis": {
+                        "min": "0",
+                        "max": "1",
+                    },
                 },
-                "layout": {"x": 0, "y": 2, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 15, "width": 188, "height": 30},
             },
             {
                 "definition": {
@@ -278,7 +309,7 @@ def get_minimal_dashboard_definition(app_name: str) -> dict[str, Any]:
                         }
                     ],
                 },
-                "layout": {"x": 0, "y": 5, "width": 12, "height": 3},
+                "layout": {"x": 0, "y": 45, "width": 188, "height": 30},
             },
         ],
         "layout_type": "free",
