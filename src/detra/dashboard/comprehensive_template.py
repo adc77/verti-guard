@@ -1,15 +1,15 @@
 """
-Comprehensive dashboard template showing ALL detra features.
+Comprehensive Detra Dashboard Template
 
-This dashboard includes:
-- LLM monitoring (adherence, latency, tokens)
-- Error tracking (error count, types, users affected)
-- Agent monitoring (workflows, tools, decisions)
-- Security (PII, injections)
-- Optimization (DSPy metrics, root cause analyses)
-- SLOs and monitor status
+Shows ALL observability features:
+- LLM Monitoring (adherence, latency, flags)
+- Error Tracking (counts, types, root causes)
+- Agent Workflows (duration, steps, tool calls)
+- Security (PII detection, injection attempts)
+- DSPy Optimization (prompts improved, confidence)
+- Actionable Insights (what to fix, recommendations)
 
-Total widgets: 25+
+Total widgets: 35+
 """
 
 from typing import Any, Dict
@@ -22,78 +22,98 @@ def get_comprehensive_dashboard(
     env: str = "production",
 ) -> Dict[str, Any]:
     """
-    Get complete dashboard definition with ALL features.
+    Generate comprehensive dashboard with all detra features.
 
     Args:
         app_name: Application name.
         env: Environment.
 
     Returns:
-        Complete dashboard JSON.
+        Complete dashboard JSON definition.
     """
     dashboard = {
-        "title": f"detra: {app_name} - Complete Observability",
-        "description": "Comprehensive monitoring: LLM + Errors + Agents + Security + Optimization",
+        "title": f"Detra: {app_name} - LLM Observability",
+        "description": "Complete observability: LLM + Errors + Agents + Security + Optimization",
         "layout_type": "ordered",
         "template_variables": [
             {"name": "env", "prefix": "env", "default": env},
             {"name": "node", "prefix": "node", "default": "*"},
+            {"name": "agent", "prefix": "agent", "default": "*"},
         ],
         "widgets": [],
     }
 
     # ==========================================================================
-    # SECTION 1: EXECUTIVE SUMMARY (4 widgets)
+    # SECTION 1: EXECUTIVE SUMMARY (KPIs)
     # ==========================================================================
 
     dashboard["widgets"].append(
-        WidgetBuilder.note(
-            "## 📊 Executive Summary\nReal-time health across all monitoring layers",
-            background_color="blue",
-            font_size="16",
-        )
-    )
-
-    # Row 1: Key metrics
-    dashboard["widgets"].extend([
-        WidgetBuilder.query_value(
-            "LLM Adherence Score",
-            "avg:detra.node.adherence_score{*}",
-            conditional_formats=[
-                {"comparator": ">=", "value": 0.85, "palette": "white_on_green"},
-                {"comparator": ">=", "value": 0.70, "palette": "white_on_yellow"},
-                {"comparator": "<", "value": 0.70, "palette": "white_on_red"},
+        WidgetBuilder.group(
+            "Executive Summary",
+            [
+                WidgetBuilder.query_value(
+                    "LLM Adherence Score",
+                    "avg:detra.node.adherence_score{$env,$node}",
+                    conditional_formats=[
+                        {"comparator": ">=", "value": 0.85, "palette": "white_on_green"},
+                        {"comparator": ">=", "value": 0.70, "palette": "white_on_yellow"},
+                        {"comparator": "<", "value": 0.70, "palette": "white_on_red"},
+                    ],
+                ),
+                WidgetBuilder.query_value(
+                    "Error Count (24h)",
+                    "sum:detra.errors.count{$env}.as_count()",
+                    conditional_formats=[
+                        {"comparator": "<=", "value": 5, "palette": "white_on_green"},
+                        {"comparator": "<=", "value": 20, "palette": "white_on_yellow"},
+                        {"comparator": ">", "value": 20, "palette": "white_on_red"},
+                    ],
+                ),
+                WidgetBuilder.query_value(
+                    "Flag Rate",
+                    "(sum:detra.node.flagged{$env}.as_count() / sum:detra.node.calls{$env}.as_count()) * 100",
+                    unit="%",
+                    precision=1,
+                ),
+                WidgetBuilder.query_value(
+                    "Avg Latency",
+                    "avg:detra.node.latency{$env}",
+                    precision=0,
+                    unit="ms",
+                ),
+                WidgetBuilder.query_value(
+                    "Active Workflows",
+                    "sum:detra.agent.workflow.active{$env}",
+                ),
+                WidgetBuilder.query_value(
+                    "Security Issues",
+                    "sum:detra.security.issues{$env}.as_count()",
+                    conditional_formats=[
+                        {"comparator": "==", "value": 0, "palette": "white_on_green"},
+                        {"comparator": ">", "value": 0, "palette": "white_on_red"},
+                    ],
+                ),
             ],
-        ),
-        WidgetBuilder.query_value(
-            "Error Rate",
-            "sum:detra.errors.count{*}.as_rate()",
-            unit="errors/min",
-            precision=2,
-        ),
-        WidgetBuilder.query_value(
-            "Active Workflows",
-            "sum:detra.agent.workflow.steps{*}",
-            aggregator="sum",
-        ),
-    ])
+            layout_type="horizontal",
+        )
+    )
 
     # ==========================================================================
-    # SECTION 2: LLM MONITORING (6 widgets)
+    # SECTION 2: LLM MONITORING
     # ==========================================================================
 
     dashboard["widgets"].append(
         WidgetBuilder.note(
-            "## 🤖 LLM Monitoring\nPrompt quality, adherence scoring, and hallucination detection",
-            background_color="gray",
+            "## LLM Monitoring\nPrompt adherence, hallucination detection, and output quality",
+            background_color="blue",
         )
     )
 
     dashboard["widgets"].extend([
-        # Adherence trend over time
+        # Adherence trend
         WidgetBuilder.timeseries(
             "Adherence Score by Node",
-            [{"q": "avg:detra.node.adherence_score{*} by {node}", "display_type": "line"}],
+            [{"q": "avg:detra.node.adherence_score{$env} by {node}", "display_type": "line"}],
             markers=[
                 {"value": "y = 0.85", "display_type": "warning dashed"},
                 {"value": "y = 0.70", "display_type": "error dashed"},
@@ -101,53 +121,57 @@ def get_comprehensive_dashboard(
             yaxis={"min": "0", "max": "1"},
         ),
 
-        # Flag rate percentage
+        # Flag rate over time
         WidgetBuilder.timeseries(
-            "Flag Rate %",
-            [{
-                "q": "(sum:detra.node.flagged{*}.as_count() / sum:detra.node.calls{*}.as_count()) * 100",
-                "display_type": "bars"
-            }],
+            "Flag Rate Over Time",
+            [{"q": "(sum:detra.node.flagged{$env}.as_count() / sum:detra.node.calls{$env}.as_count()) * 100", "display_type": "bars"}],
         ),
 
         # Flags by category
         WidgetBuilder.toplist(
             "Flags by Category",
-            "sum:detra.node.flagged{*} by {category}.as_count()",
+            "sum:detra.node.flagged{$env} by {category}.as_count()",
             palette="warm",
         ),
 
-        # LLM call volume
-        WidgetBuilder.timeseries(
-            "LLM Calls by Node",
-            [{"q": "sum:detra.node.calls{*} by {node}.as_count()", "display_type": "bars"}],
+        # Flags by node
+        WidgetBuilder.toplist(
+            "Flags by Node",
+            "sum:detra.node.flagged{$env} by {node}.as_count()",
+            palette="orange",
         ),
 
-        # Latency distribution
+        # Call volume
         WidgetBuilder.timeseries(
-            "Latency (P50, P95, P99)",
+            "LLM Calls by Node",
+            [{"q": "sum:detra.node.calls{$env} by {node}.as_count()", "display_type": "bars"}],
+        ),
+
+        # Latency percentiles
+        WidgetBuilder.timeseries(
+            "Latency P50 / P95 / P99",
             [
-                {"q": "p50:detra.node.latency_ms{*}", "display_type": "line"},
-                {"q": "p95:detra.node.latency_ms{*}", "display_type": "line"},
-                {"q": "p99:detra.node.latency_ms{*}", "display_type": "line"},
+                {"q": "p50:detra.node.latency{$env}", "display_type": "line"},
+                {"q": "p95:detra.node.latency{$env}", "display_type": "line"},
+                {"q": "p99:detra.node.latency{$env}", "display_type": "line"},
             ],
         ),
 
         # Token usage
         WidgetBuilder.timeseries(
-            "Token Usage",
-            [{"q": "sum:detra.eval.tokens_used{*}.as_count()", "display_type": "area"}],
+            "Evaluation Token Usage",
+            [{"q": "sum:detra.evaluation.tokens{$env}.as_count()", "display_type": "area"}],
         ),
     ])
 
     # ==========================================================================
-    # SECTION 3: ERROR TRACKING (5 widgets)
+    # SECTION 3: ERROR TRACKING
     # ==========================================================================
 
     dashboard["widgets"].append(
         WidgetBuilder.note(
-            "## 🐛 Error Tracking\nApplication errors with full context (Sentry-style)",
-            background_color="gray",
+            "## Error Tracking\nApplication errors with root cause analysis",
+            background_color="red",
         )
     )
 
@@ -155,173 +179,219 @@ def get_comprehensive_dashboard(
         # Error timeline
         WidgetBuilder.timeseries(
             "Errors Over Time",
-            [{"q": "sum:detra.errors.count{*}.as_count()", "display_type": "bars"}],
+            [{"q": "sum:detra.errors.count{$env}.as_count()", "display_type": "bars"}],
         ),
 
-        # Errors by type
+        # Top error types
         WidgetBuilder.toplist(
             "Top Error Types",
-            "sum:detra.errors.count{*} by {exception_type}.as_count()",
+            "sum:detra.errors.count{$env} by {exception_type}.as_count()",
             palette="warm",
-        ),
-
-        # Error rate
-        WidgetBuilder.query_value(
-            "Error Rate (per minute)",
-            "sum:detra.errors.count{*}.as_rate()",
-            precision=2,
         ),
 
         # Unique errors
         WidgetBuilder.query_value(
             "Unique Error Groups",
-            "count_nonzero:detra.errors.count{*} by {error_id}",
+            "count_nonzero:detra.errors.count{$env} by {error_id}",
         ),
 
-        # Errors by severity
+        # Errors by level
         WidgetBuilder.toplist(
-            "Errors by Level",
-            "sum:detra.errors.count{*} by {level}.as_count()",
+            "Errors by Severity",
+            "sum:detra.errors.count{$env} by {level}.as_count()",
+            palette="semantic",
+        ),
+
+        # Error event stream
+        WidgetBuilder.event_stream(
+            "Recent Errors",
+            "tags:source:detra tags:alert_type:error",
+            size="l",
         ),
     ])
 
     # ==========================================================================
-    # SECTION 4: AGENT MONITORING (6 widgets)
+    # SECTION 4: AGENT WORKFLOWS
     # ==========================================================================
 
     dashboard["widgets"].append(
         WidgetBuilder.note(
-            "## 🤖 Agent Workflows\nMulti-step agent processes, tool calls, and decisions",
-            background_color="gray",
+            "## Agent Workflows\nMulti-step processes, tool calls, and decisions",
+            background_color="purple",
         )
     )
 
     dashboard["widgets"].extend([
         # Workflow duration
         WidgetBuilder.timeseries(
-            "Agent Workflow Duration",
-            [
-                {"q": "avg:detra.agent.workflow.duration_ms{*} by {agent}", "display_type": "line"},
-            ],
+            "Workflow Duration by Agent",
+            [{"q": "avg:detra.agent.workflow.duration_ms{$env} by {agent}", "display_type": "line"}],
         ),
 
-        # Workflow steps
+        # Steps per workflow
         WidgetBuilder.timeseries(
             "Steps per Workflow",
-            [{"q": "avg:detra.agent.workflow.steps{*} by {agent}", "display_type": "bars"}],
+            [{"q": "avg:detra.agent.workflow.steps{$env} by {agent}", "display_type": "bars"}],
         ),
 
         # Tool calls
         WidgetBuilder.timeseries(
             "Tool Calls per Workflow",
-            [{"q": "avg:detra.agent.tool_calls{*} by {agent}", "display_type": "bars"}],
+            [{"q": "avg:detra.agent.tool_calls{$env} by {agent}", "display_type": "bars"}],
         ),
 
-        # Workflow success rate
+        # Success rate
         WidgetBuilder.query_value(
             "Workflow Success Rate",
-            "(sum:detra.agent.workflow.completed{*} / sum:detra.agent.workflow.total{*}) * 100",
+            "(sum:detra.agent.workflow.completed{$env} / (sum:detra.agent.workflow.completed{$env} + sum:detra.agent.workflow.failed{$env})) * 100",
             unit="%",
+            precision=1,
         ),
 
-        # Anomalies detected
+        # Anomalies
         WidgetBuilder.timeseries(
-            "Agent Anomalies Detected",
-            [{"q": "sum:detra.agent.anomalies{*} by {anomaly_type}.as_count()", "display_type": "bars"}],
+            "Agent Anomalies",
+            [{"q": "sum:detra.agent.anomalies{$env} by {anomaly_type}.as_count()", "display_type": "bars"}],
         ),
 
-        # Active workflows gauge
-        WidgetBuilder.query_value(
-            "Active Workflows",
-            "sum:detra.agent.workflow.active{*}",
+        # Tool latency
+        WidgetBuilder.timeseries(
+            "Tool Call Latency",
+            [{"q": "avg:detra.agent.tool.latency_ms{$env} by {tool_name}", "display_type": "line"}],
         ),
     ])
 
     # ==========================================================================
-    # SECTION 5: SECURITY MONITORING (4 widgets)
+    # SECTION 5: SECURITY
     # ==========================================================================
 
     dashboard["widgets"].append(
         WidgetBuilder.note(
-            "## 🔒 Security Monitoring\nPII detection, prompt injection, and sensitive content",
-            background_color="gray",
+            "## Security Monitoring\nPII detection, prompt injection, sensitive content",
+            background_color="orange",
         )
     )
 
     dashboard["widgets"].extend([
         # PII detections
         WidgetBuilder.timeseries(
-            "PII Detections",
-            [{"q": "sum:detra.security.pii_detected{*} by {type}.as_count()", "display_type": "bars"}],
+            "PII Detections by Type",
+            [{"q": "sum:detra.security.pii_detected{$env} by {pii_type}.as_count()", "display_type": "bars"}],
         ),
 
         # Injection attempts
         WidgetBuilder.timeseries(
             "Prompt Injection Attempts",
-            [{"q": "sum:detra.security.injection_attempts{*}.as_count()", "display_type": "area"}],
+            [{"q": "sum:detra.security.injection_attempts{$env}.as_count()", "display_type": "area"}],
         ),
 
         # Security issues by severity
         WidgetBuilder.toplist(
-            "Security Issues by Severity",
-            "sum:detra.security.issues{*} by {severity}.as_count()",
+            "Security by Severity",
+            "sum:detra.security.issues{$env} by {severity}.as_count()",
             palette="warm",
         ),
 
-        # Security event stream
-        WidgetBuilder.event_stream(
-            "Recent Security Events",
-            "tags:source:detra tags:category:security",
-            size="l",
+        # Security by check type
+        WidgetBuilder.toplist(
+            "Security by Check",
+            "sum:detra.security.issues{$env} by {check}.as_count()",
         ),
     ])
 
     # ==========================================================================
-    # SECTION 6: OPTIMIZATION & INTELLIGENCE (4 widgets)
+    # SECTION 6: DSPY OPTIMIZATION
     # ==========================================================================
 
     dashboard["widgets"].append(
         WidgetBuilder.note(
-            "## 🧠 Intelligence & Optimization\nDSPy prompt optimization and root cause analysis",
-            background_color="gray",
+            "## Prompt Optimization (DSPy)\nAutomatic prompt improvements and fixes",
+            background_color="green",
         )
     )
 
     dashboard["widgets"].extend([
         # Prompts optimized
         WidgetBuilder.timeseries(
-            "Prompts Optimized (DSPy)",
-            [{"q": "sum:detra.optimization.prompts_optimized{*}.as_count()", "display_type": "bars"}],
+            "Prompts Optimized",
+            [{"q": "sum:detra.optimization.prompts_optimized{$env}.as_count()", "display_type": "bars"}],
+        ),
+
+        # Optimization confidence
+        WidgetBuilder.timeseries(
+            "Optimization Confidence",
+            [{"q": "avg:detra.optimization.confidence{$env}", "display_type": "line"}],
+            yaxis={"min": "0", "max": "1"},
         ),
 
         # Root cause analyses
         WidgetBuilder.timeseries(
-            "Root Cause Analyses Performed",
-            [{"q": "sum:detra.optimization.root_causes_analyzed{*}.as_count()", "display_type": "bars"}],
+            "Root Cause Analyses",
+            [{"q": "sum:detra.optimization.root_causes{$env}.as_count()", "display_type": "bars"}],
         ),
 
-        # Optimization confidence
+        # Success rate
         WidgetBuilder.query_value(
-            "Avg Optimization Confidence",
-            "avg:detra.optimization.confidence{*}",
-            precision=2,
-        ),
-
-        # Improvement success rate
-        WidgetBuilder.query_value(
-            "Optimization Success Rate",
-            "(sum:detra.optimization.successful{*} / sum:detra.optimization.total{*}) * 100",
+            "Optimization Success %",
+            "(sum:detra.optimization.successful{$env} / sum:detra.optimization.total{$env}) * 100",
             unit="%",
         ),
     ])
 
     # ==========================================================================
-    # SECTION 7: MONITORS & INCIDENTS (3 widgets)
+    # SECTION 7: WHAT TO FIX (Actionable Insights)
     # ==========================================================================
 
     dashboard["widgets"].append(
         WidgetBuilder.note(
-            "## ⚠️ Alerts & Incidents\nActive monitors and incident tracking",
+            "## What to Fix\nActionable insights and recommendations",
+            background_color="yellow",
+        )
+    )
+
+    dashboard["widgets"].extend([
+        # Nodes needing attention (low adherence)
+        WidgetBuilder.toplist(
+            "Nodes with Low Adherence (Fix These)",
+            "bottom10:avg:detra.node.adherence_score{$env} by {node}",
+            palette="warm",
+        ),
+
+        # High flag rate nodes
+        WidgetBuilder.toplist(
+            "High Flag Rate Nodes",
+            "top10:(sum:detra.node.flagged{$env} by {node}.as_count() / sum:detra.node.calls{$env} by {node}.as_count()) * 100",
+            palette="warm",
+        ),
+
+        # Most common errors
+        WidgetBuilder.toplist(
+            "Most Frequent Errors",
+            "top10:sum:detra.errors.count{$env} by {exception_type}.as_count()",
+            palette="red",
+        ),
+
+        # Security hotspots
+        WidgetBuilder.toplist(
+            "Security Hotspots",
+            "top5:sum:detra.security.issues{$env} by {node}.as_count()",
+            palette="orange",
+        ),
+
+        # Slow nodes
+        WidgetBuilder.toplist(
+            "Slowest Nodes (P95)",
+            "top10:p95:detra.node.latency{$env} by {node}",
+        ),
+    ])
+
+    # ==========================================================================
+    # SECTION 8: ALERTS & MONITORS
+    # ==========================================================================
+
+    dashboard["widgets"].append(
+        WidgetBuilder.note(
+            "## Alerts & Monitors\nActive alerts and incident status",
             background_color="gray",
         )
     )
@@ -329,40 +399,88 @@ def get_comprehensive_dashboard(
     dashboard["widgets"].extend([
         # Monitor summary
         WidgetBuilder.monitor_summary(
-            "Monitor Status",
-            "status:(alert OR warn OR no data) source:detra",
+            "Active Monitors",
+            "tag:(source:detra)",
         ),
 
-        # Incident timeline
+        # Recent events
         WidgetBuilder.event_stream(
-            "Recent Incidents",
-            "tags:source:detra tags:alert_type:error",
+            "Recent Events",
+            "sources:detra",
             size="l",
         ),
 
-        # SLO status (if configured)
+        # SLO note
         WidgetBuilder.note(
-            "**SLO Status**\n- Response Quality: 99.5% target\n- Latency: < 2s target\n- Error Rate: < 1% target",
+            """### SLO Targets
+- Adherence Score: > 0.85
+- Error Rate: < 1%
+- Latency P95: < 3000ms
+- Security Issues: 0 critical""",
+            background_color="white",
         ),
     ])
 
     return dashboard
 
 
-def get_widget_count() -> Dict[str, int]:
+def get_minimal_dashboard(app_name: str, env: str = "production") -> Dict[str, Any]:
     """
-    Get count of widgets by category.
+    Minimal dashboard with essential widgets only.
+
+    Args:
+        app_name: Application name.
+        env: Environment.
 
     Returns:
-        Dictionary with widget counts per section.
+        Minimal dashboard JSON.
     """
     return {
-        "executive_summary": 4,
-        "llm_monitoring": 6,
+        "title": f"Detra: {app_name} (Minimal)",
+        "description": "Essential LLM observability metrics",
+        "layout_type": "ordered",
+        "template_variables": [
+            {"name": "env", "prefix": "env", "default": env},
+        ],
+        "widgets": [
+            WidgetBuilder.query_value(
+                "Adherence Score",
+                "avg:detra.node.adherence_score{$env}",
+                conditional_formats=[
+                    {"comparator": ">=", "value": 0.85, "palette": "white_on_green"},
+                    {"comparator": "<", "value": 0.85, "palette": "white_on_red"},
+                ],
+            ),
+            WidgetBuilder.query_value(
+                "Error Count",
+                "sum:detra.errors.count{$env}.as_count()",
+            ),
+            WidgetBuilder.timeseries(
+                "Adherence Over Time",
+                [{"q": "avg:detra.node.adherence_score{$env}", "display_type": "line"}],
+            ),
+            WidgetBuilder.timeseries(
+                "Errors Over Time",
+                [{"q": "sum:detra.errors.count{$env}.as_count()", "display_type": "bars"}],
+            ),
+            WidgetBuilder.toplist(
+                "Top Issues",
+                "sum:detra.node.flagged{$env} by {category}.as_count()",
+            ),
+        ],
+    }
+
+
+def get_widget_count() -> Dict[str, int]:
+    """Get widget counts by section."""
+    return {
+        "executive_summary": 6,
+        "llm_monitoring": 7,
         "error_tracking": 5,
-        "agent_monitoring": 6,
-        "security_monitoring": 4,
-        "optimization": 4,
-        "monitors_incidents": 3,
-        "total": 32,
+        "agent_workflows": 6,
+        "security": 4,
+        "dspy_optimization": 4,
+        "what_to_fix": 5,
+        "alerts_monitors": 3,
+        "total": 40,
     }

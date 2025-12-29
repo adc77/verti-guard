@@ -1,21 +1,21 @@
-# detra Configuration for Legal Document Analyzer
-app_name: legal-document-analyzer
+# Detra Configuration for Legal AI Agent
+app_name: legal-ai-agent
 version: "1.0.0"
 environment: production
 
-# Datadog configuration (can be overridden by environment variables)
+# Datadog configuration
 datadog:
   api_key: ${DD_API_KEY}
   app_key: ${DD_APP_KEY}
   site: ${DD_SITE}
-  service: legal-analyzer
+  service: legal-ai-agent
   env: production
   version: "1.0.0"
 
 # Gemini evaluation configuration
 gemini:
   api_key: ${GOOGLE_API_KEY}
-  model: gemini-2.5-flash
+  model: gemini-2.0-flash-exp
   temperature: 0.1
   max_tokens: 1024
 
@@ -154,4 +154,4 @@ alerts:
 
 # Dashboard
 create_dashboard: true
-dashboard_name: "Legal AI - LLM Observability"
+dashboard_name: "Detra: Legal AI Agent - LLM Observability"
