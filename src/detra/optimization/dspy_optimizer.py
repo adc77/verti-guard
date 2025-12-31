@@ -134,6 +134,7 @@ class DSpyOptimizer:
             best_result = None
             best_confidence = 0.0
             current_prompt = original_prompt
+            iteration = 0  # Initialize to handle case where loop never runs
 
             for iteration in range(1, max_iterations + 1):
                 # Run DSPy module in executor to avoid blocking event loop
